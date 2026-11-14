@@ -2,7 +2,7 @@ import { MODELS, RES } from './models.js';
 import { detectPose } from './pose.js';
 import { resizeMask } from './matte.js';
 import {
-  landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox,
+  landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox,
 } from './frame.js';
 
 const $ = id => document.getElementById(id);
@@ -383,13 +383,15 @@ async function analyse(it, ep) {
         const a = maskToAnchor(resizeMask(m, RES, RES, gw, gh), gw, gh);
         if (a) {
           const kx = W / gw, ky = H / gh;
-          anchor = { eyeY: a.eyeY * ky, shoulderY: a.shoulderY * ky, centerX: a.centerX * kx, shoulderWidth: a.shoulderWidth * kx };
+          anchor = { eyeY: a.eyeY * ky, shoulderY: a.shoulderY * ky, centerX: a.centerX * kx, shoulderWidth: a.shoulderWidth * kx, shoulderEstimated: true };
           pose = 'masque';
         }
       }
       if (!anchor) throw new Error('joueur introuvable sur la photo');
       // Zone détourée plus large que le cadre final : marge pour le zoom et les retouches.
-      region = padAndClip(bustFrame(anchor, Math.max(outAspect(), 0.9), { zoom: REGION_ZOOM }), 0.04, W, H);
+      // Plus haute vers le haut : une grosse tête (enfant) agrandit le cadre final vers les cheveux.
+      const rf = bustFrame(anchor, Math.max(outAspect(), 0.9), { zoom: REGION_ZOOM });
+      region = padAndClip({ x: rf.x, y: rf.y - 0.3 * rf.h, w: rf.w, h: 1.3 * rf.h }, 0.04, W, H);
     }
     const raw = await maskOf(src, region);
     if (!alive(it, ep)) return null;
@@ -466,10 +468,11 @@ function frameOf(it) {
   const [W, H] = outSize(it), asp = W / H;
   if (S.framing === 'orig') return { x: 0, y: 0, w: it.W, h: it.H };
   let f;
-  if (S.framing === 'bust' && it.anchor) f = bustFrame(it.anchor, asp, { zoom: S.zoom, headTop: it.headTop });
+  const lim = S.framing === 'bust' ? subjectLimits(it.bbox, it.W) : null;
+  if (S.framing === 'bust' && it.anchor) f = bustFrame(it.anchor, asp, { zoom: S.zoom, headTop: it.headTop, limits: lim });
   else if (S.framing === 'full' && it.bbox) f = fullFrame(it.bbox, asp, { fill: S.fill / 100, place: S.place, imgH: it.H });
   else f = { x: 0, y: 0, w: it.W, h: it.H };
-  return clampToRegion(adjustFrame(f, it.adj), it.region, it.W, it.H);
+  return clampToRegion(adjustFrame(f, it.adj), it.region, it.W, it.H, lim);
 }
 function drawBackground(ctx, W, H) {
   if (S.bgMode === 'none') return;
@@ -864,4 +867,4 @@ document.addEventListener('drop', e => { if (!drop.contains(e.target)) { e.preve
 syncUI(); updateCount();
 loadCatalogue().then(() => { if (S.bgMode === 'preset' && S.preset) loadPreset(S.preset); });
 // Accès pour les tests automatisés.
-window.__detourage = { get items() { return items; }, S, compose, get presetPret() { return presetImgId; } };
+window.__detourage = { get items() { return items; }, S, compose, addFiles, frameOf, get presetPret() { return presetImgId; } };

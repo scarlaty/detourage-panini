@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BUST, landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox } from '../js/frame.js';
+import { BUST, landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox } from '../js/frame.js';
 
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
 
@@ -35,13 +35,46 @@ test('bustFrame : les yeux tombent à la même hauteur relative quelle que soit 
   }
 });
 
-test('bustFrame : décale le cadre pour ne pas couper les cheveux, et le zoom resserre', () => {
-  const a = { eyeY: 400, shoulderY: 600, centerX: 300 };
-  const f0 = bustFrame(a, 1);
-  const f = bustFrame(a, 1, { headTop: f0.y });
-  close(f.y, f0.y - BUST.headMargin * f.h);
-  const fz = bustFrame(a, 1, { zoom: 2 });
-  close(fz.h, f0.h / 2);
+test('bustFrame : adulte courant inchangé (yeux à 28 %, yeux → épaules 28 %)', () => {
+  const a = { eyeY: 400, shoulderY: 600, centerX: 300, shoulderWidth: 1.9 * 200 };
+  const f0 = bustFrame({ eyeY: 400, shoulderY: 600, centerX: 300 }, 5 / 7);
+  const f = bustFrame(a, 5 / 7, { headTop: 400 - 0.18 * f0.h, limits: { bottom: 2000, left: -Infinity, right: Infinity } });
+  assert.deepEqual(f, f0);
+  close(bustFrame(a, 5 / 7, { zoom: 2 }).h, f0.h / 2);
+});
+
+test('bustFrame : grosse tête (enfant) → dézoome pour garder la tête entière, yeux toujours à 28 %', () => {
+  const a = { eyeY: 400, shoulderY: 520, centerX: 300 };          // cou court
+  const headTop = 260;                                              // cheveux hauts
+  const f = bustFrame(a, 5 / 7, { headTop });
+  close((a.eyeY - headTop) / f.h, BUST.maxHeadAbove);
+  close((a.eyeY - f.y) / f.h, BUST.eyeAt);
+  assert.ok(headTop - f.y >= BUST.headMargin * f.h - 1e-9);
+});
+
+test('bustFrame : épaules larges → cadre assez large', () => {
+  const a = { eyeY: 400, shoulderY: 600, centerX: 300, shoulderWidth: 700 };
+  const f = bustFrame(a, 5 / 7);
+  close(f.w, 700 * BUST.shoulderSpan);
+});
+
+test('bustFrame : jamais de vide sous le buste ni sur un côté coupé, tête gardée', () => {
+  const a = { eyeY: 400, shoulderY: 520, centerX: 300, shoulderWidth: 400 };
+  const headTop = 260, limits = { bottom: 900, left: 0, right: 640 };   // photo serrée : sujet coupé en bas et des deux côtés
+  const f = bustFrame(a, 5 / 7, { headTop, limits });
+  assert.ok(f.y + f.h <= 900 + 1e-9, 'bas');
+  assert.ok(f.x >= -1e-9 && f.x + f.w <= 640 + 1e-9, 'côtés');
+  assert.ok(headTop - f.y >= BUST.headMargin * f.h - 1e-9, 'cheveux');
+  // très serrée en bas : le cadre remonte puis rétrécit, sans couper la tête
+  const g = bustFrame(a, 5 / 7, { headTop, limits: { bottom: 700, left: -Infinity, right: Infinity } });
+  close(g.y + g.h, 700);
+  assert.ok(headTop - g.y >= BUST.headMargin * g.h - 1e-9);
+});
+
+test('subjectLimits : bas toujours, côtés seulement si le sujet touche le bord', () => {
+  assert.deepEqual(subjectLimits({ x0: 100, y0: 50, x1: 500, y1: 800 }, 1000), { bottom: 800, left: -Infinity, right: Infinity });
+  assert.deepEqual(subjectLimits({ x0: 0, y0: 50, x1: 1000, y1: 800 }, 1000), { bottom: 800, left: 0, right: 1000 });
+  assert.equal(subjectLimits(null, 1000), null);
 });
 
 test('adjustFrame : neutre par défaut, zoom centré, décalages', () => {
@@ -103,4 +136,37 @@ test('headTopNear et maskBBox', () => {
   assert.equal(headTopNear(m, w, h, 5, 1), 6);
   assert.equal(headTopNear(m, w, h, 8, 1), 3);
   assert.deepEqual(maskBBox(m, w, h), { x0: 5, y0: 3, x1: 9, y1: 7 });
+});
+
+test('clampToRegion : les limites du sujet s’appliquent après un dézoom manuel', () => {
+  const r = { x: 0, y: 0, w: 1000, h: 1000 };   // zone = image entière : ne contraint rien
+  const f = clampToRegion({ x: 100, y: 200, w: 500, h: 900 }, r, 1000, 1000, { bottom: 1000, left: -Infinity, right: Infinity });
+  close(f.y + f.h, 1000); close(f.h, 900);
+});
+
+test('bustFrame : haut des cheveux introuvable ou sous les yeux → cadre sûr, sans vide en haut', () => {
+  const a = { eyeY: 400, shoulderY: 600, centerX: 300 };
+  const f = bustFrame(a, 5 / 7, { headTop: null, limits: { bottom: 700, left: -Infinity, right: Infinity } });
+  close(f.y + f.h, 700); close((a.eyeY - f.y) / f.h, BUST.eyeAt);   // yeux à 28 %, bas sur le sujet
+  assert.ok(f.y >= 0);
+  assert.deepEqual(bustFrame(a, 5 / 7, { headTop: 450 }), bustFrame(a, 5 / 7));
+});
+
+test('bustFrame : épaules d’adultes réels (écart / yeux→épaules 1,3 à 1,5) → règle des épaules inactive', () => {
+  const base = bustFrame({ eyeY: 400, shoulderY: 600, centerX: 300 }, 5 / 7);
+  for (const k of [1.32, 1.49]) assert.deepEqual(bustFrame({ eyeY: 400, shoulderY: 600, centerX: 300, shoulderWidth: k * 200 }, 5 / 7), base);
+});
+
+test('bustFrame : source coupée au buste → cadre le plus grand possible sans vide, bas du sujet aberrant ignoré', () => {
+  const a = { eyeY: 300, shoulderY: 480, centerX: 400 };
+  // bas du sujet à 700 : yeux à 28 % et bas sur 700 (h = 400 / 0,72), cheveux gardés
+  const f = bustFrame(a, 5 / 7, { headTop: 180, limits: { bottom: 700, left: -Infinity, right: Infinity } });
+  close(f.h, 400 / (1 - BUST.eyeAt)); close(f.y + f.h, 700); close((a.eyeY - f.y) / f.h, BUST.eyeAt);
+  assert.ok(180 - f.y >= BUST.headMargin * f.h - 1e-9);
+  assert.deepEqual(bustFrame(a, 5 / 7, { headTop: 180, limits: { bottom: 310, left: -Infinity, right: Infinity } }), bustFrame(a, 5 / 7, { headTop: 180 }));
+});
+
+test('bustFrame : épaules estimées depuis le masque (sans pose) → pas de règle des épaules', () => {
+  const a = { eyeY: 400, shoulderY: 600, centerX: 300, shoulderWidth: 900, shoulderEstimated: true };
+  assert.deepEqual(bustFrame(a, 5 / 7), bustFrame({ eyeY: 400, shoulderY: 600, centerX: 300 }, 5 / 7));
 });

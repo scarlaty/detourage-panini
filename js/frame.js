@@ -10,6 +10,8 @@ export const BUST = {
   eyeAt: 0.28,         // les yeux à 28 % de la hauteur, depuis le haut
   eyeToShoulder: 0.28, // distance yeux → épaules (articulations MediaPipe) = 28 % de la hauteur
   headMargin: 0.035,  // marge minimale au-dessus des cheveux
+  maxHeadAbove: 0.21,  // haut des cheveux → yeux : au plus 21 % de la hauteur (enfants : grosse tête, cou court)
+  shoulderSpan: 1.25,  // largeur du cadre ≥ 1,25 × écart des articulations d'épaules (épaules dans la vignette)
 };
 
 /**
@@ -62,7 +64,7 @@ export function maskToAnchor(mask, w, h) {
   if (shoulderY < 0) shoulderY = neckY + (neckY - top) * 0.5;
   const eyeY = top + (neckY - top) * 0.45;
   const centerX = (left[neckY] + right[neckY]) / 2;
-  return { eyeY, shoulderY, centerX, shoulderWidth: Math.max(headW * 2.5, neckW * 3), headTop: top };
+  return { eyeY, shoulderY, centerX, shoulderWidth: Math.max(headW * 2.5, neckW * 3), shoulderEstimated: true, headTop: top };
 }
 
 /** Haut du crâne (première ligne opaque) dans une bande verticale autour de l'axe du joueur. */
@@ -77,15 +79,51 @@ export function headTopNear(mask, w, h, cx, halfWidth) {
 
 /**
  * Cadre buste dans l'image source pour un format de sortie (aspect = largeur/hauteur).
- * `zoom` > 1 resserre le cadre ; `headTop` (optionnel) garantit que les cheveux ne sont pas coupés.
+ * `zoom` > 1 resserre le cadre ; `headTop` (optionnel) : haut des cheveux.
+ * `limits` (optionnel) : { bottom, left, right } bords au-delà desquels le sujet est coupé dans la
+ * source (rien à montrer) ; le cadre ne les dépasse jamais.
+ *
+ * Règles, de la plus prioritaire à la moins prioritaire :
+ *  1. pas de vide sous le buste ni sur un côté où le sujet est coupé (limits) ;
+ *  2. tête entière, avec une marge au-dessus des cheveux ;
+ *  3. proportions : cheveux → yeux ≤ maxHeadAbove, épaules dans la largeur (dézoome si besoin) ;
+ *  4. yeux à eyeAt de la hauteur, distance yeux → épaules = eyeToShoulder (adultes : cas courant).
  */
-export function bustFrame(anchor, aspect, { zoom = 1, headTop = null } = {}) {
+export function bustFrame(anchor, aspect, { zoom = 1, headTop = null, limits = null } = {}) {
+  if (headTop != null && !(headTop < anchor.eyeY)) headTop = null;   // haut des cheveux aberrant : ignoré
   const d = Math.max(1, anchor.shoulderY - anchor.eyeY);
-  const h = d / BUST.eyeToShoulder / zoom;
+  const m = BUST.headMargin;
+  // taille : la plus grande qu'exigent les proportions (3, 4), puis le zoom manuel
+  let h = d / BUST.eyeToShoulder;
+  if (headTop != null) h = Math.max(h, (anchor.eyeY - headTop) / BUST.maxHeadAbove);
+  if (anchor.shoulderWidth && !anchor.shoulderEstimated) h = Math.max(h, anchor.shoulderWidth * BUST.shoulderSpan / aspect);
+  h /= zoom;
+  // plafond imposé par la source (1, 2) : largeur disponible, et hauteur entre cheveux et bas du sujet
+  const L = limits?.left ?? -Infinity, Rt = limits?.right ?? Infinity;
+  // bas du sujet aberrant (masque réduit à un fragment au-dessus des épaules) : ignoré
+  const B = limits?.bottom != null && limits.bottom > anchor.eyeY + 0.5 * d ? limits.bottom : Infinity;
+  h = Math.min(h, (Rt - L) / aspect);
+  // Source coupée au niveau du buste : priorité au « pas de vide », quitte à placer les yeux plus bas
+  // que 28 % (voulu : un vide sous le buste se voit bien plus qu'un léger écart de cadrage).
+  // Plafond : le plus grand cadre qui finit sur B sans couper les cheveux, soit yeux à 28 % et bas
+  // sur B, soit cheveux avec leur marge et bas sur B (le cadre remonte alors, sans vide en bas).
+  if (Number.isFinite(B)) h = Math.min(h, Math.max((B - anchor.eyeY) / (1 - BUST.eyeAt), headTop != null ? (B - headTop) / (1 - m) : 0));
   const w = h * aspect;
   let y = anchor.eyeY - BUST.eyeAt * h;
-  if (headTop != null && headTop < y + BUST.headMargin * h) y = headTop - BUST.headMargin * h;
-  return { x: anchor.centerX - w / 2, y, w, h };
+  if (headTop != null && headTop < y + m * h) y = headTop - m * h;   // cheveux non coupés
+  if (y + h > B) y = B - h;                                          // buste jusqu'en bas
+  let x = anchor.centerX - w / 2;
+  if (x < L) x = L; if (x + w > Rt) x = Rt - w;
+  return { x, y, w, h };
+}
+
+/**
+ * Bords de la source au-delà desquels le sujet est coupé, d'après sa boîte englobante :
+ * bas du sujet toujours ; côtés seulement si le sujet touche le bord de l'image.
+ */
+export function subjectLimits(bbox, imgW, tol = 2) {
+  if (!bbox) return null;
+  return { bottom: bbox.y1, left: bbox.x0 <= tol ? bbox.x0 : -Infinity, right: bbox.x1 >= imgW - tol ? bbox.x1 : Infinity };
 }
 
 /** Cadre « corps entier » : la boîte englobante du sujet, posée en bas ou centrée. */
@@ -113,9 +151,11 @@ export function adjustFrame(f, { zoom = 1, dx = 0, dy = 0 } = {}) {
  * contraint rien (au-delà, il n'y a de toute façon rien à montrer). Si le cadre est plus
  * grand que la zone, il est réduit (zoom) en gardant son centre et ses proportions.
  */
-export function clampToRegion(f, r, imgW, imgH) {
-  const minX = r.x > 0 ? r.x : -Infinity, maxX = r.x + r.w < imgW ? r.x + r.w : Infinity;
-  const minY = r.y > 0 ? r.y : -Infinity, maxY = r.y + r.h < imgH ? r.y + r.h : Infinity;
+export function clampToRegion(f, r, imgW, imgH, limits = null) {
+  // `limits` (subjectLimits) : bords où le sujet est coupé ; s'appliquent aussi après les retouches manuelles
+  const minX = Math.max(r.x > 0 ? r.x : -Infinity, limits?.left ?? -Infinity);
+  const maxX = Math.min(r.x + r.w < imgW ? r.x + r.w : Infinity, limits?.right ?? Infinity);
+  const minY = r.y > 0 ? r.y : -Infinity, maxY = Math.min(r.y + r.h < imgH ? r.y + r.h : Infinity, limits?.bottom ?? Infinity);
   let { x, y, w, h } = f;
   const k = Math.min(1, (maxX - minX) / w, (maxY - minY) / h);
   if (k < 1) { const cx = x + w / 2, cy = y + h / 2; w *= k; h *= k; x = cx - w / 2; y = cy - h / 2; }
