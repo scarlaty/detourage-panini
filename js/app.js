@@ -4,6 +4,8 @@ import { resizeMask } from './matte.js';
 import {
   landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox,
 } from './frame.js';
+import { CARTE_DEFAUT, normaliser, dessinerCarte, contourJoueur, dependDeLaPhoto, modeles, surprise } from './carte.js';
+import { construireEditeur } from './carte-ui.js';
 
 const $ = id => document.getElementById(id);
 const MAX_SIDE = 3200;   // côté max de l'image source conservée pour le traitement
@@ -17,6 +19,7 @@ const DEFAULTS = {
   keyOn: true, keyColor: '#3862bc', keyTol: 40, sharp: 10,
   preset: '', bgMode: 'gradient', g1: '#111111', g2: '#f2c500', gtype: 'linear', color: '#f2c500', blur: 0,
   logoPos: 'br', logoSize: 16, out: 'jpg',
+  carte: JSON.parse(JSON.stringify(CARTE_DEFAUT)), carteId: 'C000',
 };
 const STORE = 'detourage-panini:v1';
 const S = { ...DEFAULTS };
@@ -26,11 +29,17 @@ try {
   if (!MODELS[S.model]) S.model = DEFAULTS.model;
   // Valeurs d'une ancienne version absentes des listes : retour au défaut.
   for (const id of ['format', 'gtype', 'logoPos']) if (![...document.getElementById(id).options].some(o => o.value === S[id])) S[id] = DEFAULTS[id];
-  for (const [id, vals] of [['framing', ['bust', 'full', 'orig']], ['place', ['bottom', 'center']], ['bgMode', ['preset', 'gradient', 'solid', 'image', 'none']], ['out', ['jpg', 'png']]]) if (!vals.includes(S[id])) S[id] = DEFAULTS[id];
+  for (const [id, vals] of [['framing', ['bust', 'full', 'orig']], ['place', ['bottom', 'center']], ['bgMode', ['carte', 'preset', 'gradient', 'solid', 'image', 'none']], ['out', ['jpg', 'png']]]) if (!vals.includes(S[id])) S[id] = DEFAULTS[id];
 } catch { /* stockage indisponible */ }
+S.carte = normaliser(S.carte);
 function persist() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch { /* idem */ } }
 
-let bgImage = null, logoImage = null;
+let bgImage = null, logoImage = null, logoVer = 0;
+// Logo du club pour les cartes (remplacé par le logo ajouté dans « Logo et export », s'il y en a un)
+const logoClub = new Image();
+const logoClubP = new Promise(res => { logoClub.onload = () => { logoVer++; res(); changed('compose'); }; logoClub.onerror = () => res(); });
+logoClub.src = 'fonds/cartes/logo-club.png';
+const logoCarte = () => carteFigee ? carteFigee.logo : logoImage || (logoClub.naturalWidth ? logoClub : null);
 
 const PRESETS = [
   ['#111111', '#f2c500'], ['#0a0a0b', '#3a3a40'], ['#f2c500', '#fff7a8'], ['#0b2a5b', '#3b82f6'],
@@ -209,8 +218,11 @@ function syncUI() {
   $('bgSolid').hidden = S.bgMode !== 'solid';
   $('bgImage').hidden = S.bgMode !== 'image';
   $('bgPreset').hidden = S.bgMode !== 'preset';
+  $('bgCarte').hidden = S.bgMode !== 'carte';
   syncPreset();
-  $('logoRows').hidden = !logoImage; $('logoDel').hidden = !logoImage;
+  if (S.bgMode === 'carte') syncCarte(); else viderCarteCache();
+  $('logoRows').hidden = !logoImage || S.bgMode === 'carte'; $('logoDel').hidden = !logoImage;
+  $('logoCarteHint').hidden = S.bgMode !== 'carte';
   const [w, h] = S.format.split('x');
   document.documentElement.style.setProperty('--ar', S.framing === 'orig' ? '3/4' : `${w}/${h}`);
 }
@@ -263,13 +275,13 @@ $('bgFile').onchange = async e => {
 $('logoFile').onchange = async e => {
   const f = e.target.files[0]; if (!f) return;
   try {
-    logoImage = rasterize(await decode(f));
+    logoImage = rasterize(await decode(f)); logoVer++;
     changed('compose');
     toast(items.some(i => i.status === 'ok') ? 'Logo ajouté aux vignettes.' : 'Logo ajouté : il apparaîtra sur les vignettes.');
   } catch { toast('Impossible de lire ce logo.'); }
   e.target.value = '';
 };
-$('logoDel').onclick = () => { logoImage = null; changed('compose'); };
+$('logoDel').onclick = () => { logoImage = null; logoVer++; changed('compose'); };
 
 /* ---------------- traitement ---------------- */
 let items = [], nextId = 1, epoch = 0, queue = Promise.resolve();
@@ -495,11 +507,44 @@ function drawBackground(ctx, W, H) {
   ctx.drawImage(bgImage, (W - bw) / 2 - pad, (H - bh) / 2 - pad, bw + 2 * pad, bh + 2 * pad);
   ctx.restore();
 }
+/** Couche arrière de la carte à la taille de sortie, partagée entre photos quand c'est possible. */
+const carteCache = new Map();
+// pendant un export ZIP : carte, logo et mode figés (l'éditeur reste utilisable, appliqué après)
+let carteFigee = null, zipEnCours = false;
+const carteCfg = () => carteFigee ? carteFigee.cfg : S.carte;
+const modeFond = () => carteFigee ? carteFigee.mode : S.bgMode;
+function viderCarteCache() { for (const v of carteCache.values()) free(v); carteCache.clear(); }
+function carteArriere(w, h) {
+  const cfg = carteCfg(), key = `${w}x${h}|${carteFigee ? carteFigee.ver : logoVer}|${JSON.stringify(cfg)}`;
+  let c = carteCache.get(key);
+  if (!c) {
+    if (carteCache.size > 3) viderCarteCache();
+    c = canvas(w, h); dessinerCarte(c.getContext('2d'), w, h, cfg, { logo: logoCarte() }, 'arriere', null);
+    carteCache.set(key, c);
+  }
+  return c;
+}
+/** Vignette en mode carte : couche arrière, contour éventuel, joueur, couche avant. */
+function composeCarte(it, out, f, W, H) {
+  const ow = out.width, oh = out.height, ctx = out.getContext('2d'), res = { logo: logoCarte() }, c = carteCfg();
+  ctx.imageSmoothingQuality = 'high';
+  if (dependDeLaPhoto(c)) dessinerCarte(ctx, ow, oh, c, res, 'arriere', it.name);
+  else ctx.drawImage(carteArriere(ow, oh), 0, 0);
+  const sx = ow / f.w, sy = oh / f.h, r = it.region;
+  if (c.contourJoueur.actif) {
+    const p = canvas(ow, oh), px = p.getContext('2d'); px.imageSmoothingQuality = 'high';
+    px.drawImage(it.cut, (r.x - f.x) * sx, (r.y - f.y) * sy, r.w * sx, r.h * sy);
+    contourJoueur(ctx, p, ow, oh, c); ctx.drawImage(p, 0, 0); free(p);
+  } else ctx.drawImage(it.cut, (r.x - f.x) * sx, (r.y - f.y) * sy, r.w * sx, r.h * sy);
+  dessinerCarte(ctx, ow, oh, c, res, 'avant', it.name);
+  return out;
+}
 /** Vignette finale, réduite pour que son plus grand côté ne dépasse pas maxDim. */
 function compose(it, maxDim = Infinity, { transparent = false } = {}) {
   const [W, H] = outSize(it), f = frameOf(it);
   const k = Math.min(1, maxDim / Math.max(W, H));
   const out = canvas(Math.max(1, Math.round(W * k)), Math.max(1, Math.round(H * k)));
+  if (!transparent && modeFond() === 'carte') return composeCarte(it, out, f, W, H);
   const ctx = out.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
   ctx.scale(out.width / W, out.height / H);
@@ -527,7 +572,7 @@ function loadCatalogue() {
   if (catalogueP) return catalogueP;
   const get = url => fetch(url, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => null);
   catalogueP = Promise.all([get('fonds/catalogue.json'), get('fonds/salle/catalogue.json')]).then(([a, b]) => {
-    catalogue = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
+    catalogue = [...cartesCatalogue(), ...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
     // Visuel mémorisé disparu du catalogue : on revient au fond par défaut. Si le catalogue n'a pas
     // répondu (réseau), on garde le choix : il redeviendra valable au prochain chargement.
     if (Array.isArray(a) && S.preset && !presetEntry(S.preset)) {
@@ -539,7 +584,91 @@ function loadCatalogue() {
   });
   return catalogueP;
 }
-function presetEntry(id) { return catalogue.find(x => x.id === id) || null; }
+function presetEntry(id) { return catalogue.find(x => x.id === id && !x.carte) || null; }
+
+/* ---------------- cartes (modèles générés + éditeur) ---------------- */
+let cartesListe = null;
+function cartesCatalogue() {
+  if (!cartesListe) cartesListe = modeles().map(m => ({ id: m.id, titre: m.titre, groupe: 'Cartes', famille: m.famille, thumb: '', carte: m.cfg }));
+  return cartesListe;
+}
+/** Aperçu d'une carte (sans joueur), en image. */
+function apercuCarte(cfg, w = 150) {
+  const h = Math.round(w * 1.4), c = canvas(w, h);
+  dessinerCarte(c.getContext('2d'), w, h, cfg, { logo: logoCarte() }, 'arriere', null);
+  dessinerCarte(c.getContext('2d'), w, h, cfg, { logo: logoCarte() }, 'avant', null);
+  return c;
+}
+// Vignettes des cartes générées au fil de l'eau (quelques-unes par image, sans bloquer la page)
+let vignettesFile = [], vignettesT = 0;
+function vignettesCartes() {
+  cancelAnimationFrame(vignettesT);
+  vignettesFile = [...$('gGrid').querySelectorAll('img[data-carte]')].filter(i => !i.src);
+  const etape = () => {
+    const t0 = performance.now();
+    while (vignettesFile.length && performance.now() - t0 < 12) {
+      const img = vignettesFile.shift(), e = cartesCatalogue().find(x => x.id === img.dataset.carte);
+      if (!e) continue;
+      if (!e.thumb || e.thumbVer !== logoVer) { const c = apercuCarte(e.carte); e.thumb = c.toDataURL('image/jpeg', 0.82); e.thumbVer = logoVer; free(c); }
+      img.src = e.thumb;
+    }
+    if (vignettesFile.length) vignettesT = requestAnimationFrame(etape);
+  };
+  vignettesT = requestAnimationFrame(etape);
+}
+let syncEditeur = () => {};
+function appliquerCarte(cfg, id = '') {
+  S.carte = normaliser(JSON.parse(JSON.stringify(cfg))); S.carteId = id; S.bgMode = 'carte';
+  syncEditeur(); changed('compose');
+}
+function syncCarte() {
+  const e = cartesCatalogue().find(x => x.id === S.carteId);
+  $('carteName').textContent = e ? `${e.id} · ${e.titre}` : 'Carte personnalisée';
+  const th = $('carteThumb'), c = apercuCarte(S.carte, 60);
+  th.getContext('2d').clearRect(0, 0, th.width, th.height); th.getContext('2d').drawImage(c, 0, 0, th.width, th.height); free(c);
+}
+syncEditeur = construireEditeur($('carteEditeur'), () => S.carte, () => { S.carteId = ''; changed('compose'); });
+$('carteOpen').onclick = () => { galGroup = 'Cartes'; galFam = 'Toutes'; openGallery(); };
+$('carteSurprise').onclick = () => { appliquerCarte(surprise()); toast('Nouvelle carte tirée au sort : modifie-la à ton goût.'); };
+$('carte108').onclick = () => appliquerCarte(CARTE_DEFAUT, 'C000');
+
+// Mes cartes : enregistrées dans ce navigateur, exportables en fichier
+const MES = 'detourage-panini:cartes';
+const mesCartes = () => { try { const l = JSON.parse(localStorage.getItem(MES) || '[]'); return Array.isArray(l) ? l.filter(x => x && typeof x.nom === 'string') : []; } catch { return []; } };
+function renderMesCartes() {
+  const l = mesCartes(), sel = $('mesCartes');
+  sel.replaceChildren(...(l.length ? l.map((x, i) => new Option(x.nom, i)) : [new Option('Aucune carte enregistrée', '')]));
+  sel.disabled = $('mesAppliquer').disabled = $('mesSupprimer').disabled = !l.length;
+}
+$('mesEnregistrer').onclick = () => {
+  let n = 1; while (mesCartes().some(x => x.nom === `Ma carte ${n}`)) n++;   // premier numéro libre
+  const nom = $('mesNom').value.trim() || `Ma carte ${n}`;
+  const avant = mesCartes(), remplace = avant.some(x => x.nom === nom);
+  const l = avant.filter(x => x.nom !== nom); l.push({ nom, cfg: S.carte });
+  try { localStorage.setItem(MES, JSON.stringify(l)); toast(`Carte « ${nom} » ${remplace ? 'remplacée' : 'enregistrée'}.`); } catch { toast("Impossible d'enregistrer (stockage du navigateur indisponible)."); }
+  $('mesNom').value = ''; renderMesCartes(); $('mesCartes').value = String(l.length - 1);
+};
+$('mesAppliquer').onclick = () => { const x = mesCartes()[+$('mesCartes').value]; if (x) { appliquerCarte(x.cfg); toast(`Carte « ${x.nom} » appliquée.`); } };
+$('mesSupprimer').onclick = () => {
+  const l = mesCartes(), i = +$('mesCartes').value; if (!l[i]) return;
+  const [x] = l.splice(i, 1);
+  try { localStorage.setItem(MES, JSON.stringify(l)); } catch { /* idem */ }
+  renderMesCartes(); toast(`Carte « ${x.nom} » supprimée.`);
+};
+$('mesExporter').onclick = () => {
+  const b = new Blob([JSON.stringify({ type: 'carte-detourage-panini', version: 1, cfg: S.carte }, null, 2)], { type: 'application/json' });
+  saveBlob(b, 'carte.json');
+};
+$('mesImporter').onchange = async e => {
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
+  try {
+    if (f.size > 200000) throw new Error('taille');
+    const j = JSON.parse(await f.text());
+    if (!j || typeof j !== 'object' || j.type !== 'carte-detourage-panini' || !j.cfg || typeof j.cfg !== 'object') throw new Error('format');
+    appliquerCarte(j.cfg); toast('Carte importée.');
+  } catch { toast("Ce fichier n'est pas une carte valide."); }
+};
+renderMesCartes();
 
 /** Charge le visuel choisi ; la composition repart dès qu'il est prêt. */
 function loadPreset(id) {
@@ -590,13 +719,13 @@ function syncPreset() {
   const e = presetEntry(S.preset);
   const th = $('presetThumb');
   if (e) { th.src = e.thumb; th.alt = e.titre; $('presetName').textContent = `${e.id} · ${e.titre}`; $('presetFam').textContent = `${e.groupe} · ${e.famille}`; }
-  else { th.removeAttribute('src'); $('presetName').textContent = 'Choisir un visuel'; $('presetFam').textContent = catalogue.length ? `${catalogue.length} fonds aux couleurs du club` : 'Plus de 300 fonds aux couleurs du club'; }
+  else { th.removeAttribute('src'); $('presetName').textContent = 'Choisir un visuel'; $('presetFam').textContent = catalogue.some(x => !x.carte) ? `${catalogue.filter(x => !x.carte).length} fonds aux couleurs du club` : 'Plus de 300 fonds aux couleurs du club'; }
 }
 
 const gal = $('gallery');
 let galGroup = 'Tous', galFam = 'Toutes', galBuilt = false, playerUrl = null;
 
-function famsFor(g) { return ['Toutes', ...new Set(catalogue.filter(x => g === 'Tous' || x.groupe === g).map(x => x.famille))]; }
+function famsFor(g) { return ['Toutes', ...new Set(catalogue.filter(x => (g === 'Tous' ? !x.carte : x.groupe === g)).map(x => x.famille))]; }
 function chip(label, on, onclick) {
   const b = document.createElement('button');
   b.className = 'g-chip' + (on ? ' on' : ''); b.textContent = label; b.setAttribute('aria-pressed', on); b.onclick = onclick;
@@ -613,7 +742,7 @@ function renderGalleryGrid() {
   const grid = $('gGrid'), frag = document.createDocumentFragment();
   let last = null, n = 0;
   for (const e of catalogue) {
-    if (galGroup !== 'Tous' && e.groupe !== galGroup) continue;
+    if (galGroup === 'Tous' ? e.carte : e.groupe !== galGroup) continue;
     if (galFam !== 'Toutes' && e.famille !== galFam) continue;
     n++;
     const sec = `${e.groupe} · ${e.famille}`;
@@ -621,10 +750,12 @@ function renderGalleryGrid() {
       const h = document.createElement('div'); h.className = 'g-sec'; h.textContent = sec; frag.appendChild(h); last = sec;
     }
     const b = document.createElement('button');
-    b.type = 'button'; b.className = 'g-card' + (e.id === S.preset ? ' on' : ''); b.dataset.id = e.id;
+    b.type = 'button'; b.className = 'g-card' + (!e.carte && S.bgMode !== 'carte' && e.id === S.preset ? ' on' : ''); b.dataset.id = e.id;
     b.innerHTML = '<div class="g-pic"><img loading="lazy" alt=""><img class="g-pl" loading="lazy" alt=""></div><div class="g-cap"><b></b><span></span></div>';
     const [bg, pl] = b.querySelectorAll('img');
-    bg.src = e.thumb; if (playerUrl) pl.src = playerUrl; else pl.remove();
+    if (e.carte) { bg.dataset.carte = e.id; bg.removeAttribute('loading'); if (e.thumb && e.thumbVer === logoVer) bg.src = e.thumb; b.classList.toggle('on', S.bgMode === 'carte' && e.id === S.carteId); }
+    else bg.src = e.thumb;
+    if (playerUrl) pl.src = playerUrl; else pl.remove();
     b.querySelector('b').textContent = e.id; b.querySelector('span').textContent = e.titre;
     b.title = `${e.id} · ${e.titre}`;
     b.setAttribute('aria-label', `Fond ${e.id}, ${e.titre}`);
@@ -632,6 +763,7 @@ function renderGalleryGrid() {
   }
   grid.replaceChildren(frag);
   grid.scrollTop = 0;
+  vignettesCartes();
   $('gCount').textContent = `${n} visuel${n > 1 ? 's' : ''}`;
 }
 /** Image d'un joueur détouré, sans fond, pour juger les visuels en situation. */
@@ -652,7 +784,7 @@ async function openGallery() {
 async function openGalleryInner() {
   if (viewing) closeViewer();
   await loadCatalogue();
-  if (!catalogue.length) return toast("Aucun visuel trouvé : le dossier « fonds » est-il publié avec la page ?");
+  if (galGroup !== 'Cartes' && !catalogue.some(x => !x.carte)) return toast("Aucun visuel trouvé : le dossier « fonds » est-il publié avec la page ?");
   await makePlayerOverlay();
   renderGalleryFilters(); renderGalleryGrid();
   gal.classList.toggle('noplayer', !$('gPlayer').checked);
@@ -661,6 +793,8 @@ async function openGalleryInner() {
 }
 $('gGrid').addEventListener('click', e => {
   const card = e.target.closest('.g-card'); if (!card) return;
+  const ce = cartesCatalogue().find(x => x.id === card.dataset.id);
+  if (ce) { appliquerCarte(ce.carte, ce.id); gal.close(); toast(`Carte ${ce.id} appliquée : chaque élément se règle dans « Fond ».`); return; }
   S.preset = card.dataset.id; S.bgMode = 'preset';
   for (const c of $('gGrid').querySelectorAll('.g-card.on')) c.classList.remove('on');
   card.classList.add('on');
@@ -671,17 +805,20 @@ $('gGrid').addEventListener('click', e => {
 });
 $('gPlayer').onchange = e => gal.classList.toggle('noplayer', !e.target.checked);
 $('gClose').onclick = () => gal.close();
-$('presetOpen').onclick = openGallery;
-$('presetOpen2').onclick = openGallery;
+const ouvrirVisuels = () => { if (galGroup === 'Cartes') { galGroup = 'Tous'; galFam = 'Toutes'; } openGallery(); };
+$('presetOpen').onclick = ouvrirVisuels;
+$('presetOpen2').onclick = ouvrirVisuels;
 gal.addEventListener('click', e => { if (e.target === gal) gal.close(); }); // clic sur le fond assombri
 let bgModeAvantGalerie = null;
 gal.addEventListener('close', () => {
+  cancelAnimationFrame(vignettesT); vignettesFile = [];
   if (S.bgMode === 'preset' && !S.preset) { S.bgMode = bgModeAvantGalerie || DEFAULTS.bgMode; changed('compose'); }
   bgModeAvantGalerie = null;
 });
 
 /** Avant un export : le fond choisi doit être réellement prêt (sinon fond provisoire exporté). */
 async function backgroundReady() {
+  if (S.bgMode === 'carte') { if (!logoImage) await logoClubP; return true; }
   if (S.bgMode !== 'preset') return true;
   if (!S.preset) { toast('Choisis un visuel de fond avant d’exporter.'); return false; }
   await loadCatalogue();
@@ -744,7 +881,7 @@ function removeItem(it) {
 function updateCount() {
   const ok = items.filter(i => i.status === 'ok').length, busy = items.some(i => i.status === 'wait' || i.status === 'run');
   $('count').textContent = items.length ? `${ok} / ${items.length} photo${items.length > 1 ? 's' : ''} prête${ok > 1 ? 's' : ''}` : 'Aucune photo';
-  $('zip').disabled = !ok || busy; $('clear').disabled = !items.length;
+  $('zip').disabled = !ok || busy || zipEnCours; $('clear').disabled = !items.length;
   $('empty').hidden = items.length > 0;
 }
 $('clear').onclick = () => { cancelPending(); [...items].forEach(removeItem); setStatus(''); setBar(null); };
@@ -766,9 +903,11 @@ $('zip').onclick = async () => {
   const ok = items.filter(i => i.status === 'ok');
   if (!ok.length) return;
   if (typeof JSZip === 'undefined') return toast("La bibliothèque ZIP n'a pas pu se charger : télécharge les photos une par une.");
-  if (!(await backgroundReady())) return;
-  $('zip').disabled = true;
+  if (zipEnCours) return;
+  zipEnCours = true; $('zip').disabled = true;   // verrou avant toute attente (double clic)
   try {
+    if (!(await backgroundReady())) return;
+    carteFigee = { cfg: structuredClone(S.carte), logo: logoCarte(), ver: logoVer, mode: S.bgMode };
     const zip = new JSZip(), used = new Set(), ext = fileType()[1];
     for (const [i, it] of ok.entries()) {
       if (!items.includes(it) || !it.cut) continue; // retirée pendant l'export
@@ -781,7 +920,11 @@ $('zip').onclick = async () => {
     saveBlob(await zip.generateAsync({ type: 'blob', compression: 'STORE' }), 'vignettes.zip');
     setStatus(`ZIP prêt : ${ok.length} photo${ok.length > 1 ? 's' : ''}.`);
   } catch (e) { toast('Le ZIP a échoué : ' + e.message); }
-  finally { setBar(null); updateCount(); }
+  finally {
+    const fige = carteFigee; carteFigee = null; zipEnCours = false; setBar(null); updateCount();
+    // modifications faites pendant l'export : on les affiche maintenant
+    if (fige && (fige.mode !== S.bgMode || fige.ver !== logoVer || JSON.stringify(fige.cfg) !== JSON.stringify(S.carte))) changed('compose');
+  }
 };
 
 /* ---------------- visionneuse et retouche ---------------- */

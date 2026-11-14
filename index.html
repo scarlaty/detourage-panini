@@ -70,7 +70,26 @@
     <section class="card">
       <h2><b>4</b>Fond</h2>
       <div class="seg" id="bgMode" role="group" aria-label="Type de fond">
-        <button data-v="preset">Visuels</button><button data-v="gradient">Dégradé</button><button data-v="solid">Uni</button><button data-v="image">Image</button><button data-v="none">Transparent</button>
+        <button data-v="carte">Carte</button><button data-v="preset">Visuels</button><button data-v="gradient">Dégradé</button><button data-v="solid">Uni</button><button data-v="image">Image</button><button data-v="none">Transparent</button>
+      </div>
+      <div id="bgCarte">
+        <button class="preset-pick" id="carteOpen" aria-haspopup="dialog">
+          <canvas id="carteThumb" width="108" height="152" aria-hidden="true"></canvas>
+          <span><strong id="carteName">Carte écusson (108)</strong><small>Plus de 700 modèles de cartes : clique pour les parcourir</small></span>
+        </button>
+        <div class="actions">
+          <button class="btn small" id="carteSurprise" type="button">🎲 Surprends-moi</button>
+          <button class="btn small" id="carte108" type="button">Revenir au 108</button>
+        </div>
+        <p class="hint">Chaque élément de la carte se règle ci-dessous : ouvre une section, active-la, change couleurs, tailles et positions.</p>
+        <div id="carteEditeur" class="c-editeur"></div>
+        <details class="c-sec">
+          <summary>Mes cartes</summary>
+          <div class="row"><input type="text" id="mesNom" maxlength="40" placeholder="Nom de la carte" aria-label="Nom de la carte"><button class="btn small" id="mesEnregistrer" type="button">Enregistrer</button></div>
+          <div class="row"><select id="mesCartes" aria-label="Mes cartes enregistrées"></select><button class="btn small" id="mesAppliquer" type="button">Appliquer</button><button class="link" id="mesSupprimer" type="button">Supprimer</button></div>
+          <div class="row"><button class="btn small" id="mesExporter" type="button">Exporter (.json)</button><label class="btn small"><input type="file" id="mesImporter" accept="application/json,.json" class="sr-only">Importer</label></div>
+          <p class="hint">Les cartes enregistrées restent dans ce navigateur ; exporte-les pour les partager avec un autre bénévole.</p>
+        </details>
       </div>
       <div id="bgPreset">
         <button class="preset-pick" id="presetOpen" aria-haspopup="dialog">
@@ -94,6 +113,7 @@
     <section class="card">
       <h2><b>5</b>Logo et export</h2>
       <div class="row"><label class="btn small"><input type="file" id="logoFile" accept="image/*" class="sr-only">Ajouter un logo</label><button class="link" id="logoDel" hidden>Retirer</button></div>
+      <p class="hint" id="logoCarteHint" hidden>En mode Carte, le logo (celui du club, ou celui ajouté ici) se règle dans la section « Logo » de la carte.</p>
       <div id="logoRows" hidden>
         <div class="row"><label for="logoPos">Coin</label><select id="logoPos"><option value="br">Bas droite</option><option value="bl">Bas gauche</option><option value="tr">Haut droite</option><option value="tl">Haut gauche</option></select></div>
         <div class="row"><label for="logoSize">Taille</label><input type="range" id="logoSize" min="6" max="35"><output id="logoSizeV"></output></div>

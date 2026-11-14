@@ -40,6 +40,39 @@ sur un seul cœur du processeur et peut prendre **1 à 6 minutes par photo** sel
 Si aucune pose n'est détectée, le cadrage est estimé d'après la silhouette et la vignette
 porte la mention « à vérifier ».
 
+## Cartes
+
+Le mode **Carte** (section Fond) fabrique des vignettes façon cartes et autocollants de sport,
+à partir du fond 108 « Carte écusson ». Plus de 700 modèles (galerie, collection « Cartes »),
+répartis en 22 familles : écusson, vignette classique à bordure pleine, rétro, grand numéro,
+holographique, autocollant, néon, pop BD, éclats, bandes sport, panthère, griffures, hexagones,
+diagonale, projecteur, damier d'écussons, dégradé 3 couleurs…
+
+Chaque modèle n'est qu'un réglage d'un même moteur (`js/carte.js`) : tout ce qui est proposé
+se recrée et se modifie dans l'éditeur, élément par élément.
+
+| Élément | Réglages principaux |
+|---|---|
+| Fond | dégradé, dégradé 3 couleurs, projecteur, uni, deux tons en diagonale ; couleurs, angle |
+| Halo | lumière derrière la tête : couleur, intensité, taille, hauteur |
+| Motif | rayons, éclats, trames (dont points dégradés façon BD), lignes, bandes, carbone, chevrons, losanges, hexagones, cercles, vagues, étoiles, damier d'écussons, griffures ; couleur, taille, angle, fondu |
+| Écusson en filigrane | rendu (couleurs, parties claires/sombres teintées, silhouette), taille, position, rotation |
+| Grand numéro / initiales | plein ou contour, taille, position, rotation |
+| Panthère | couleur, œil, contour, taille, position, sens |
+| Cadre et coins | liseré ou bordure pleine (vignette rétro), coins arrondis ou coupés, second liseré ; équerres, triangles, points |
+| Bandeau, plaque nominative, badge | ruban, onglet, pilule, biseau… ; badge cercle, bouclier, hexagone, losange |
+| Logo, texte libre | position, taille, rendu, ombre ; devant ou derrière le joueur |
+| Contour du joueur | contour « autocollant » et lueur autour du joueur détouré |
+| Effets | effet holographique, vignettage, grain |
+
+Les textes acceptent `{nom}`, `{numero}` et `{poste}`, tirés du nom de chaque photo :
+`10 - Léa Martin (Gardienne).jpg` → numéro 10, nom Léa Martin, poste Gardienne.
+
+**Surprends-moi** tire une carte inédite au sort. **Mes cartes** enregistre ses créations dans
+le navigateur, et les exporte ou importe en fichier `.json` pour les partager. Le logo des
+cartes est celui du club (`fonds/cartes/logo-club.png`), remplacé par le logo ajouté dans
+« Logo et export » s'il y en a un.
+
 ## Fonds
 
 Le bouton **Visuels** (section Fond) ouvre une fenêtre avec tous les fonds, filtrables par

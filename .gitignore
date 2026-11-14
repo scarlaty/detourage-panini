@@ -12,3 +12,6 @@ node_modules/
 __pycache__/
 *.pyc
 .essais/
+
+# Logo du club pour les cartes (déjà publié dans les fonds SVG)
+!fonds/cartes/logo-club.png

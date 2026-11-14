@@ -21,9 +21,9 @@ body { margin: 0; background: var(--bg); color: var(--ink);
 main { max-width: 1240px; margin: 0 auto; padding: 12px 16px 60px; display: grid; gap: 14px; }
 @media (min-width: 960px) {
   main { grid-template-columns: 370px minmax(0, 1fr); align-items: start; }
-  .side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: auto; }
+  .side { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow: hidden auto; scrollbar-gutter: stable; }
 }
-.side { display: grid; gap: 14px; }
+.side { display: grid; gap: 14px; grid-template-columns: minmax(0, 1fr); }
 .card { background: var(--card); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
 .card h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 12px; display: flex; align-items: center; gap: 8px; }
 .card h2 b { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; background: var(--accent); color: var(--accent-ink); font-size: 11px; }
@@ -138,3 +138,23 @@ dialog::backdrop { background: rgba(0,0,0,.75); }
 .g-card .g-cap { display: flex; gap: 6px; padding: 5px 7px; font-size: 11px; }
 .g-card .g-cap b { color: var(--accent-line); font-variant-numeric: tabular-nums; }
 .g-card .g-cap span { color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ---------------- éditeur de carte ---------------- */
+.preset-pick canvas { width: 54px; height: 76px; border-radius: 6px; background: var(--line); flex: none; }
+.c-editeur { display: grid; gap: 6px; margin-top: 10px; }
+.c-sec { border: 1px solid var(--line); border-radius: 10px; padding: 0 10px; background: var(--bg); }
+.c-sec > summary { cursor: pointer; padding: 10px 0; font-weight: 600; font-size: 14px; display: flex; align-items: center; gap: 8px; list-style: none; }
+.c-sec > summary::-webkit-details-marker { display: none; }
+.c-sec > summary::after { content: '▸'; margin-left: auto; color: var(--muted); transition: transform .15s; }
+.c-sec[open] > summary::after { transform: rotate(90deg); }
+.c-sec[open] { padding-bottom: 10px; }
+.c-on { width: 8px; height: 8px; border-radius: 50%; border: 1px solid var(--muted); flex: none; }
+.c-sec.on .c-on { background: var(--accent-line); border-color: var(--accent-line); }
+.c-sec .row { margin-top: 8px; }
+.c-sec .row > label:first-child { min-width: 110px; }
+.c-sec .row-check { flex-direction: row-reverse; justify-content: flex-end; }
+.c-sec .row-check > label:first-child { min-width: 0; color: var(--ink); }
+.c-sec input[type=color] { width: 44px; height: 30px; padding: 0; border: 1px solid var(--line); border-radius: 6px; background: none; }
+.c-sec input[type=text] { flex: 1; min-width: 120px; font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--card, #fff); color: var(--ink); }
+.c-sec select { flex: 1; min-width: 120px; }
+#bgCarte .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
