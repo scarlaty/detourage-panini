@@ -9,3 +9,5 @@ node_modules/
 
 # Fonds tirés des photos de la salle (personnes visibles) : locaux uniquement
 fonds/salle/
+__pycache__/
+*.pyc
