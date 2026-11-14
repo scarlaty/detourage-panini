@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Détourage Panini</title>
+<meta name="description" content="Détourage et cadrage buste uniformes des photos de joueurs, directement dans le navigateur.">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%230A0A0B'/%3E%3Ccircle cx='16' cy='12' r='5' fill='%23FDF103'/%3E%3Cpath d='M6 28c1-6 5-9 10-9s9 3 10 9z' fill='%23FDF103'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="top">
+  <div>
+    <h1>Détourage Panini</h1>
+    <p>Détoure les joueurs et les cadre tous de la même façon. Tout se passe dans ton navigateur : les photos ne sont envoyées nulle part.</p>
+  </div>
+  <span id="backend" class="chip" hidden></span>
+</header>
+
+<main>
+  <aside class="side">
+    <section class="card">
+      <h2><b>1</b>Photos</h2>
+      <label class="drop" id="drop">
+        <input type="file" id="files" accept="image/*" multiple class="sr-only">
+        <strong>Choisir des photos</strong>
+        <span>ou les glisser ici · JPG, PNG (HEIC sur Safari)</span>
+      </label>
+      <div class="row">
+        <label for="model">Modèle</label>
+        <select id="model"></select>
+      </div>
+      <p class="hint">Le modèle est téléchargé une seule fois, puis gardé en cache.</p>
+    </section>
+
+    <section class="card">
+      <h2><b>2</b>Cadrage</h2>
+      <div class="seg" id="framing" role="group" aria-label="Cadrage">
+        <button data-v="bust" class="on">Buste</button>
+        <button data-v="full">Corps entier</button>
+        <button data-v="orig">Photo entière</button>
+      </div>
+      <div class="row">
+        <label for="format">Format</label>
+        <select id="format">
+          <option value="1000x1400">Vignette 5:7 (1000×1400)</option>
+          <option value="1080x1350">Portrait 4:5 (1080×1350)</option>
+          <option value="1080x1080">Carré (1080×1080)</option>
+        </select>
+      </div>
+      <div class="row" id="zoomRow"><label for="zoom">Zoom</label><input type="range" id="zoom" min="0.75" max="1.4" step="0.01"><output id="zoomV"></output></div>
+      <div id="fullRows" hidden>
+        <div class="seg" id="place" role="group" aria-label="Position"><button data-v="bottom" class="on">Posé en bas</button><button data-v="center">Centré</button></div>
+        <div class="row"><label for="fill">Taille</label><input type="range" id="fill" min="60" max="100"><output id="fillV"></output></div>
+      </div>
+      <p class="hint">Buste : les yeux et les épaules sont repérés automatiquement, pour que tous les visages aient la même taille et la même position. Clique sur une photo pour la retoucher.</p>
+    </section>
+
+    <section class="card">
+      <h2><b>3</b>Nettoyage</h2>
+      <label class="check"><input type="checkbox" id="keyOn"> Retirer la couleur du filet</label>
+      <div id="keyRows">
+        <div class="row"><label for="keyColor">Couleur</label><input type="color" id="keyColor"><span class="hint inline">clique sur la photo d'origine dans l'aperçu pour la prélever</span></div>
+        <div class="row"><label for="keyTol">Tolérance</label><input type="range" id="keyTol" min="15" max="70"><output id="keyTolV"></output></div>
+      </div>
+      <div class="row"><label for="sharp">Bords nets</label><input type="range" id="sharp" min="0" max="60"><output id="sharpV"></output></div>
+      <p class="hint">Le filet n'est retiré que sur le contour du joueur : un maillot de la même couleur n'est pas touché.</p>
+    </section>
+
+    <section class="card">
+      <h2><b>4</b>Fond</h2>
+      <div class="seg" id="bgMode" role="group" aria-label="Type de fond">
+        <button data-v="gradient">Dégradé</button><button data-v="solid">Uni</button><button data-v="image">Image</button><button data-v="none">Transparent</button>
+      </div>
+      <div id="bgGradient">
+        <div class="row"><label>Couleurs</label><input type="color" id="g1" aria-label="Couleur du haut"><input type="color" id="g2" aria-label="Couleur du bas">
+          <select id="gtype" aria-label="Type de dégradé"><option value="linear">Linéaire</option><option value="radial">Projecteur</option></select></div>
+        <div class="presets" id="presets"></div>
+      </div>
+      <div id="bgSolid" class="row"><label for="color">Couleur</label><input type="color" id="color"></div>
+      <div id="bgImage">
+        <label class="btn small"><input type="file" id="bgFile" accept="image/*" class="sr-only">Choisir une image</label>
+        <div class="row"><label for="blur">Flou</label><input type="range" id="blur" min="0" max="30"><output id="blurV"></output></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2><b>5</b>Logo et export</h2>
+      <div class="row"><label class="btn small"><input type="file" id="logoFile" accept="image/*" class="sr-only">Ajouter un logo</label><button class="link" id="logoDel" hidden>Retirer</button></div>
+      <div id="logoRows" hidden>
+        <div class="row"><label for="logoPos">Coin</label><select id="logoPos"><option value="br">Bas droite</option><option value="bl">Bas gauche</option><option value="tr">Haut droite</option><option value="tl">Haut gauche</option></select></div>
+        <div class="row"><label for="logoSize">Taille</label><input type="range" id="logoSize" min="6" max="35"><output id="logoSizeV"></output></div>
+      </div>
+      <div class="seg" id="out" role="group" aria-label="Type de fichier"><button data-v="jpg">JPG</button><button data-v="png">PNG</button></div>
+      <p class="hint">Un fond transparent donne toujours un PNG.</p>
+    </section>
+  </aside>
+
+  <section class="card results">
+    <div class="bar-top">
+      <span id="count">Aucune photo</span>
+      <button class="btn ghost" id="clear" disabled>Tout vider</button>
+      <button class="btn" id="zip" disabled>Tout télécharger (.zip)</button>
+    </div>
+    <p id="status" role="status" aria-live="polite"></p>
+    <div class="progress" id="bar" role="progressbar" aria-label="Progression" aria-valuemin="0" aria-valuemax="100" hidden><i id="barI"></i></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty">
+      <div class="big" aria-hidden="true">🤾</div>
+      Ajoute des photos pour commencer.
+      <p class="hint">Conseil : photos en pied, joueur de face, bras le long du corps. Le nom du fichier devient le nom de la vignette.</p>
+    </div>
+  </section>
+</main>
+
+<dialog id="viewer">
+  <div class="v-head">
+    <strong id="vName"></strong>
+    <button class="icon" id="vClose" aria-label="Fermer">✕</button>
+  </div>
+  <div class="v-body">
+    <figure class="v-pic"><canvas id="vCanvas"></canvas><figcaption>Résultat</figcaption></figure>
+    <figure class="v-pic"><canvas id="vSrc" title="Clique pour prélever la couleur du filet"></canvas><figcaption>Original (clic = prélever la couleur du filet)</figcaption></figure>
+  </div>
+  <div class="v-tools">
+    <div class="row"><label for="aZoom">Zoom</label><input type="range" id="aZoom" min="0.7" max="1.6" step="0.01"></div>
+    <div class="row"><label for="aX">Gauche / droite</label><input type="range" id="aX" min="-0.3" max="0.3" step="0.005"></div>
+    <div class="row"><label for="aY">Haut / bas</label><input type="range" id="aY" min="-0.3" max="0.3" step="0.005"></div>
+    <div class="v-actions">
+      <button class="btn ghost" id="vPrev">← Précédente</button>
+      <button class="btn ghost" id="aReset">Recadrage auto</button>
+      <button class="btn ghost" id="vNext">Suivante →</button>
+      <button class="btn" id="vDl">Télécharger</button>
+    </div>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="alert"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>

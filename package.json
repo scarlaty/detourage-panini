@@ -1,0 +1,10 @@
+{
+  "name": "detourage-panini",
+  "private": true,
+  "type": "module",
+  "description": "Détourage et cadrage buste des photos de joueurs, 100 % navigateur.",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "start": "npx --yes http-server@14.1.1 -c-1 -p 8080 ."
+  }
+}

@@ -1,0 +1,8 @@
+node_modules/
+.playwright-mcp/
+# Ne jamais publier de photos de joueurs
+*.jpg
+*.jpeg
+*.png
+*.heic
+*.zip
