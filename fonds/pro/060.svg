@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400" width="1000" height="1400">
+<title>060 · Plafonnier</title>
+<defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E1E22" stop-opacity="1"/><stop offset="1" stop-color="#0A0A0B" stop-opacity="1"/></linearGradient><filter id="bl2"><feGaussianBlur stdDeviation="22"/></filter><radialGradient id="r3" cx="0.3" cy="0.0" r="1.1"><stop offset="0" stop-color="#FEF75C" stop-opacity="0.6160000000000001"/><stop offset="0.6" stop-color="#FEF75C" stop-opacity="0.168"/><stop offset="1" stop-color="#FEF75C" stop-opacity="0"/></radialGradient><filter id="n4" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter></defs>
+<rect width="1000" height="1400" fill="url(#g1)" opacity="1" />
+<polygon points="500,-120 1192,1968 -192,1968" fill="url(#r3)" filter="url(#bl2)"/>
+<circle cx="500" cy="10" r="60" fill="#FEF75C" opacity=".5" filter="url(#bl2)"/>
+<rect width="1000" height="1400" filter="url(#n4)" opacity="0.07"/>
+</svg>

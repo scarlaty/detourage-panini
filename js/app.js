@@ -15,7 +15,7 @@ const THUMB = 520, VIEW = 1000;
 const DEFAULTS = {
   model: 'ben2', framing: 'bust', format: '1000x1400', zoom: 1, place: 'bottom', fill: 90,
   keyOn: true, keyColor: '#3862bc', keyTol: 40, sharp: 10,
-  bgMode: 'gradient', g1: '#111111', g2: '#f2c500', gtype: 'linear', color: '#f2c500', blur: 0,
+  preset: '', bgMode: 'gradient', g1: '#111111', g2: '#f2c500', gtype: 'linear', color: '#f2c500', blur: 0,
   logoPos: 'br', logoSize: 16, out: 'jpg',
 };
 const STORE = 'detourage-panini:v1';
@@ -26,7 +26,7 @@ try {
   if (!MODELS[S.model]) S.model = DEFAULTS.model;
   // Valeurs d'une ancienne version absentes des listes : retour au défaut.
   for (const id of ['format', 'gtype', 'logoPos']) if (![...document.getElementById(id).options].some(o => o.value === S[id])) S[id] = DEFAULTS[id];
-  for (const [id, vals] of [['framing', ['bust', 'full', 'orig']], ['place', ['bottom', 'center']], ['bgMode', ['gradient', 'solid', 'image', 'none']], ['out', ['jpg', 'png']]]) if (!vals.includes(S[id])) S[id] = DEFAULTS[id];
+  for (const [id, vals] of [['framing', ['bust', 'full', 'orig']], ['place', ['bottom', 'center']], ['bgMode', ['preset', 'gradient', 'solid', 'image', 'none']], ['out', ['jpg', 'png']]]) if (!vals.includes(S[id])) S[id] = DEFAULTS[id];
 } catch { /* stockage indisponible */ }
 function persist() { try { localStorage.setItem(STORE, JSON.stringify(S)); } catch { /* idem */ } }
 
@@ -180,7 +180,9 @@ const FMT = { zoom: v => `${Math.round(v * 100)} %`, fill: v => `${v} %`, keyTol
 function seg(id) {
   $(id).addEventListener('click', e => {
     const b = e.target.closest('button'); if (!b || S[id] === b.dataset.v) return;
+    const prevMode = S[id];
     S[id] = b.dataset.v; changed(LEVEL[id] || 'compose');
+    if (id === 'bgMode' && S.bgMode === 'preset' && !S.preset) { bgModeAvantGalerie = prevMode; openGallery(); }
   });
 }
 ['framing', 'place', 'bgMode', 'out'].forEach(seg);
@@ -206,6 +208,8 @@ function syncUI() {
   $('bgGradient').hidden = S.bgMode !== 'gradient';
   $('bgSolid').hidden = S.bgMode !== 'solid';
   $('bgImage').hidden = S.bgMode !== 'image';
+  $('bgPreset').hidden = S.bgMode !== 'preset';
+  syncPreset();
   $('logoRows').hidden = !logoImage; $('logoDel').hidden = !logoImage;
   const [w, h] = S.format.split('x');
   document.documentElement.style.setProperty('--ar', S.framing === 'orig' ? '3/4' : `${w}/${h}`);
@@ -214,6 +218,7 @@ function syncUI() {
 let composeT = 0, refineT = 0;
 function changed(level) {
   syncUI(); persist();
+  if (S.bgMode === 'preset' && S.preset && presetImgId !== S.preset) loadCatalogue().then(() => loadPreset(S.preset));
   if (level === 'analyse') return reanalyseAll();
   if (level === 'refine') { matteVer++; scheduleRefine(); return; }
   clearTimeout(composeT);
@@ -468,6 +473,11 @@ function frameOf(it) {
 }
 function drawBackground(ctx, W, H) {
   if (S.bgMode === 'none') return;
+  if (S.bgMode === 'preset') {
+    const c = presetCanvas(W, H);
+    if (c) { ctx.drawImage(c, 0, 0, W, H); return; }
+    ctx.fillStyle = '#141417'; ctx.fillRect(0, 0, W, H); return; // visuel en cours de chargement
+  }
   if (S.bgMode === 'solid') { ctx.fillStyle = S.color; ctx.fillRect(0, 0, W, H); return; }
   if (S.bgMode === 'gradient') {
     let g;
@@ -483,17 +493,17 @@ function drawBackground(ctx, W, H) {
   ctx.restore();
 }
 /** Vignette finale, réduite pour que son plus grand côté ne dépasse pas maxDim. */
-function compose(it, maxDim = Infinity) {
+function compose(it, maxDim = Infinity, { transparent = false } = {}) {
   const [W, H] = outSize(it), f = frameOf(it);
   const k = Math.min(1, maxDim / Math.max(W, H));
   const out = canvas(Math.max(1, Math.round(W * k)), Math.max(1, Math.round(H * k)));
   const ctx = out.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
   ctx.scale(out.width / W, out.height / H);
-  drawBackground(ctx, W, H);
+  if (!transparent) drawBackground(ctx, W, H);
   const sx = W / f.w, sy = H / f.h, r = it.region;
   ctx.drawImage(it.cut, (r.x - f.x) * sx, (r.y - f.y) * sy, r.w * sx, r.h * sy);
-  if (logoImage) {
+  if (logoImage && !transparent) {
     const lw = W * S.logoSize / 100, lh = lw * logoImage.height / logoImage.width, m = W * 0.035;
     ctx.drawImage(logoImage, S.logoPos.includes('r') ? W - lw - m : m, S.logoPos.includes('b') ? H - lh - m : m, lw, lh);
   }
@@ -502,6 +512,180 @@ function compose(it, maxDim = Infinity) {
 function fileType() { return S.out === 'png' || S.bgMode === 'none' ? ['image/png', 'png'] : ['image/jpeg', 'jpg']; }
 /** Encode puis libère le canvas. */
 function toBlob(c) { const [t] = fileType(); return new Promise((res, rej) => c.toBlob(b => { free(c); b ? res(b) : rej(new Error('export impossible')); }, t, 0.92)); }
+
+/* ---------------- visuels de fond (catalogue) ---------------- */
+// fonds/catalogue.json : graphiques (publiés). fonds/salle/catalogue.json : photos de la salle,
+// présentes seulement en local (exclues de Git) ; leur absence est normale.
+let catalogue = [], catalogueP = null;
+let presetImg = null, presetImgId = null, presetLoading = null;
+const presetRaster = new Map(); // `${W}x${H}` → canvas du visuel à la taille de sortie
+
+function loadCatalogue() {
+  if (catalogueP) return catalogueP;
+  const get = url => fetch(url, { cache: 'no-cache' }).then(r => (r.ok ? r.json() : null)).catch(() => null);
+  catalogueP = Promise.all([get('fonds/catalogue.json'), get('fonds/salle/catalogue.json')]).then(([a, b]) => {
+    catalogue = [...(Array.isArray(a) ? a : []), ...(Array.isArray(b) ? b : [])];
+    // Visuel mémorisé disparu du catalogue : on revient au fond par défaut. Si le catalogue n'a pas
+    // répondu (réseau), on garde le choix : il redeviendra valable au prochain chargement.
+    if (Array.isArray(a) && S.preset && !presetEntry(S.preset)) {
+      S.preset = ''; if (S.bgMode === 'preset') S.bgMode = DEFAULTS.bgMode;
+      changed('compose');
+    } else syncPreset();
+    if (!Array.isArray(a)) catalogueP = null; // nouvel essai à la prochaine ouverture
+    return catalogue;
+  });
+  return catalogueP;
+}
+function presetEntry(id) { return catalogue.find(x => x.id === id) || null; }
+
+/** Charge le visuel choisi ; la composition repart dès qu'il est prêt. */
+function loadPreset(id) {
+  const e = presetEntry(id);
+  if (!e) return Promise.resolve();
+  if (presetImgId === id && presetImg) return Promise.resolve();
+  const img = new Image();
+  img.decoding = 'async';
+  img.src = e.src;
+  const p = img.decode().then(() => {
+    if (S.preset !== id) return; // un autre visuel a été choisi entre-temps
+    presetImg = img; presetImgId = id; clearPresetRaster();
+    changed('compose');
+  }).catch(() => {
+    toast(`Impossible de charger le visuel ${id}.`);
+    if (S.preset === id) { S.preset = presetImgId || ''; if (!S.preset && S.bgMode === 'preset') S.bgMode = DEFAULTS.bgMode; changed('compose'); }
+  });
+  presetLoading = p;
+  return p;
+}
+
+function clearPresetRaster() { for (const v of presetRaster.values()) free(v); presetRaster.clear(); }
+/**
+ * Visuel converti une seule fois par proportion (un SVG avec filtres est coûteux à redessiner) :
+ * rastérisé à 1400 px de haut puis redimensionné au dessin. Renvoie null tant que le visuel
+ * choisi n'est pas prêt (jamais l'ancien visuel à sa place).
+ */
+const PRESET_REF_H = 1400;
+function presetCanvas(W0, H0) {
+  if (!presetImg || presetImgId !== S.preset) return null;
+  const H = PRESET_REF_H, W = Math.max(1, Math.round(PRESET_REF_H * W0 / H0));
+  const key = String(W);
+  let c = presetRaster.get(key);
+  if (!c) {
+    c = canvas(W, H);
+    const x = c.getContext('2d'); x.imageSmoothingQuality = 'high';
+    const iw = presetImg.naturalWidth || 1000, ih = presetImg.naturalHeight || 1400;
+    const k = Math.max(W / iw, H / ih), bw = iw * k, bh = ih * k;
+    // Recadrage « couvrir », calé en haut : la tête du joueur reste là où le visuel l'attend.
+    x.drawImage(presetImg, (W - bw) / 2, 0, bw, bh);
+    if (presetRaster.size > 3) clearPresetRaster();
+    presetRaster.set(key, c);
+  }
+  return c;
+}
+
+function syncPreset() {
+  const e = presetEntry(S.preset);
+  const th = $('presetThumb');
+  if (e) { th.src = e.thumb; th.alt = e.titre; $('presetName').textContent = `${e.id} · ${e.titre}`; $('presetFam').textContent = `${e.groupe} · ${e.famille}`; }
+  else { th.removeAttribute('src'); $('presetName').textContent = 'Choisir un visuel'; $('presetFam').textContent = catalogue.length ? `${catalogue.length} fonds aux couleurs du club` : 'Plus de 300 fonds aux couleurs du club'; }
+}
+
+const gal = $('gallery');
+let galGroup = 'Tous', galFam = 'Toutes', galBuilt = false, playerUrl = null;
+
+function famsFor(g) { return ['Toutes', ...new Set(catalogue.filter(x => g === 'Tous' || x.groupe === g).map(x => x.famille))]; }
+function chip(label, on, onclick) {
+  const b = document.createElement('button');
+  b.className = 'g-chip' + (on ? ' on' : ''); b.textContent = label; b.setAttribute('aria-pressed', on); b.onclick = onclick;
+  return b;
+}
+function renderGalleryFilters() {
+  const groups = ['Tous', ...new Set(catalogue.map(x => x.groupe))];
+  $('gGroups').replaceChildren(...groups.map(g => chip(g, g === galGroup, () => { galGroup = g; galFam = 'Toutes'; renderGalleryFilters(); renderGalleryGrid(); })));
+  const sel = $('gFams');
+  sel.replaceChildren(...famsFor(galGroup).map(f => new Option(f === 'Toutes' ? 'Toutes les familles' : f, f, false, f === galFam)));
+  sel.onchange = () => { galFam = sel.value; renderGalleryGrid(); };
+}
+function renderGalleryGrid() {
+  const grid = $('gGrid'), frag = document.createDocumentFragment();
+  let last = null, n = 0;
+  for (const e of catalogue) {
+    if (galGroup !== 'Tous' && e.groupe !== galGroup) continue;
+    if (galFam !== 'Toutes' && e.famille !== galFam) continue;
+    n++;
+    const sec = `${e.groupe} · ${e.famille}`;
+    if (galFam === 'Toutes' && sec !== last) {
+      const h = document.createElement('div'); h.className = 'g-sec'; h.textContent = sec; frag.appendChild(h); last = sec;
+    }
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'g-card' + (e.id === S.preset ? ' on' : ''); b.dataset.id = e.id;
+    b.innerHTML = '<div class="g-pic"><img loading="lazy" alt=""><img class="g-pl" loading="lazy" alt=""></div><div class="g-cap"><b></b><span></span></div>';
+    const [bg, pl] = b.querySelectorAll('img');
+    bg.src = e.thumb; if (playerUrl) pl.src = playerUrl; else pl.remove();
+    b.querySelector('b').textContent = e.id; b.querySelector('span').textContent = e.titre;
+    b.title = `${e.id} · ${e.titre}`;
+    b.setAttribute('aria-label', `Fond ${e.id}, ${e.titre}`);
+    frag.appendChild(b);
+  }
+  grid.replaceChildren(frag);
+  grid.scrollTop = 0;
+  $('gCount').textContent = `${n} visuel${n > 1 ? 's' : ''}`;
+}
+/** Image d'un joueur détouré, sans fond, pour juger les visuels en situation. */
+function makePlayerOverlay() {
+  if (playerUrl) { URL.revokeObjectURL(playerUrl); playerUrl = null; }
+  const it = (viewing && viewing.status === 'ok') ? viewing : items.find(i => i.status === 'ok');
+  if (!it || S.framing === 'orig') { $('gWithPlayer').hidden = true; return Promise.resolve(); }
+  $('gWithPlayer').hidden = false;
+  const c = compose(it, 300, { transparent: true });
+  return new Promise(res => c.toBlob(b => { free(c); if (b) playerUrl = URL.createObjectURL(b); res(); }, 'image/png'));
+}
+let galOpening = false;
+async function openGallery() {
+  if (galOpening) return;
+  galOpening = true;
+  try { await openGalleryInner(); } finally { galOpening = false; }
+}
+async function openGalleryInner() {
+  if (viewing) closeViewer();
+  await loadCatalogue();
+  if (!catalogue.length) return toast("Aucun visuel trouvé : le dossier « fonds » est-il publié avec la page ?");
+  await makePlayerOverlay();
+  renderGalleryFilters(); renderGalleryGrid();
+  gal.classList.toggle('noplayer', !$('gPlayer').checked);
+  if (!gal.open) gal.showModal();
+  gal.querySelector('.g-card.on')?.scrollIntoView({ block: 'center' });
+}
+$('gGrid').addEventListener('click', e => {
+  const card = e.target.closest('.g-card'); if (!card) return;
+  S.preset = card.dataset.id; S.bgMode = 'preset';
+  for (const c of $('gGrid').querySelectorAll('.g-card.on')) c.classList.remove('on');
+  card.classList.add('on');
+  loadPreset(S.preset);
+  changed('compose');
+  gal.close();
+  toast(`Fond ${S.preset} appliqué`);
+});
+$('gPlayer').onchange = e => gal.classList.toggle('noplayer', !e.target.checked);
+$('gClose').onclick = () => gal.close();
+$('presetOpen').onclick = openGallery;
+$('presetOpen2').onclick = openGallery;
+gal.addEventListener('click', e => { if (e.target === gal) gal.close(); }); // clic sur le fond assombri
+let bgModeAvantGalerie = null;
+gal.addEventListener('close', () => {
+  if (S.bgMode === 'preset' && !S.preset) { S.bgMode = bgModeAvantGalerie || DEFAULTS.bgMode; changed('compose'); }
+  bgModeAvantGalerie = null;
+});
+
+/** Avant un export : le fond choisi doit être réellement prêt (sinon fond provisoire exporté). */
+async function backgroundReady() {
+  if (S.bgMode !== 'preset') return true;
+  if (!S.preset) { toast('Choisis un visuel de fond avant d’exporter.'); return false; }
+  await loadCatalogue();
+  await loadPreset(S.preset);
+  if (presetImgId !== S.preset) { toast('Le visuel de fond n’est pas encore prêt, réessaie dans un instant.'); return false; }
+  return true;
+}
 
 /* ---------------- grille ---------------- */
 function renderItem(it) {
@@ -571,6 +755,7 @@ function saveBlob(blob, name) {
 }
 async function downloadOne(it) {
   if (it.status !== 'ok') return;
+  if (!(await backgroundReady())) return;
   try { saveBlob(await toBlob(compose(it)), `${safeName(it.name)}.${fileType()[1]}`); }
   catch (e) { toast("L'export a échoué : " + e.message); }
 }
@@ -578,6 +763,7 @@ $('zip').onclick = async () => {
   const ok = items.filter(i => i.status === 'ok');
   if (!ok.length) return;
   if (typeof JSZip === 'undefined') return toast("La bibliothèque ZIP n'a pas pu se charger : télécharge les photos une par une.");
+  if (!(await backgroundReady())) return;
   $('zip').disabled = true;
   try {
     const zip = new JSZip(), used = new Set(), ext = fileType()[1];
@@ -676,5 +862,6 @@ document.addEventListener('dragover', e => e.preventDefault());
 document.addEventListener('drop', e => { if (!drop.contains(e.target)) { e.preventDefault(); addFiles(e.dataTransfer.files); } });
 
 syncUI(); updateCount();
+loadCatalogue().then(() => { if (S.bgMode === 'preset' && S.preset) loadPreset(S.preset); });
 // Accès pour les tests automatisés.
-window.__detourage = { get items() { return items; }, S, compose };
+window.__detourage = { get items() { return items; }, S, compose, get presetPret() { return presetImgId; } };

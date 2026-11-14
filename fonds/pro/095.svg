@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400" width="1000" height="1400">
+<title>095 · Cibles sur jaune</title>
+<defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FEF75C" stop-opacity="1"/><stop offset="0.5" stop-color="#FDF103" stop-opacity="1"/><stop offset="1" stop-color="#E6D200" stop-opacity="1"/></linearGradient><radialGradient id="r2" cx="0.5" cy="0.45" r="0.85"><stop offset="0" stop-color="#0A0A0B" stop-opacity="0"/><stop offset="0.65" stop-color="#0A0A0B" stop-opacity="0"/><stop offset="1" stop-color="#0A0A0B" stop-opacity="0.1"/></radialGradient><filter id="n3" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter></defs>
+<rect width="1000" height="1400" fill="url(#g1)" opacity="1" />
+<g fill="none" stroke="#0A0A0B" stroke-width="3" opacity="0.08"><circle cx="500" cy="330" r="220"/><circle cx="500" cy="330" r="300"/><circle cx="500" cy="330" r="380"/><circle cx="500" cy="330" r="460"/><circle cx="500" cy="330" r="540"/><circle cx="500" cy="330" r="620"/><circle cx="500" cy="330" r="700"/><circle cx="500" cy="330" r="780"/><circle cx="500" cy="330" r="860"/><circle cx="500" cy="330" r="940"/><circle cx="500" cy="330" r="1020"/><circle cx="500" cy="330" r="1100"/></g>
+<rect width="1000" height="1400" fill="url(#r2)" opacity="1" />
+<rect width="1000" height="1400" filter="url(#n3)" opacity="0.05"/>
+</svg>

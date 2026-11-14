@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400" width="1000" height="1400">
+<title>043 · HANDBALL vertical</title>
+<defs><radialGradient id="r1" cx="0.5" cy="0.25" r="0.7"><stop offset="0" stop-color="#34343C" stop-opacity="1"/><stop offset="1" stop-color="#0A0A0B" stop-opacity="0"/></radialGradient><radialGradient id="r2" cx="0.5" cy="0.45" r="0.85"><stop offset="0" stop-color="#0A0A0B" stop-opacity="0"/><stop offset="0.65" stop-color="#0A0A0B" stop-opacity="0"/><stop offset="1" stop-color="#0A0A0B" stop-opacity="0.35"/></radialGradient><filter id="n3" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter></defs>
+<rect width="1000" height="1400" fill="#0A0A0B" opacity="1" />
+<rect width="1000" height="1400" fill="url(#r1)" opacity="1" />
+<text x="110" y="60" text-anchor="start" font-family="'Archivo Black','Arial Black',Impact,sans-serif" font-weight="900" font-size="250" letter-spacing="-10" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.18" transform="rotate(90 110 60)" >HANDBALL</text>
+<rect width="1000" height="1400" fill="url(#r2)" opacity="1" />
+<rect width="1000" height="1400" filter="url(#n3)" opacity="0.06"/>
+</svg>

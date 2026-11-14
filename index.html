@@ -70,7 +70,14 @@
     <section class="card">
       <h2><b>4</b>Fond</h2>
       <div class="seg" id="bgMode" role="group" aria-label="Type de fond">
-        <button data-v="gradient">Dégradé</button><button data-v="solid">Uni</button><button data-v="image">Image</button><button data-v="none">Transparent</button>
+        <button data-v="preset">Visuels</button><button data-v="gradient">Dégradé</button><button data-v="solid">Uni</button><button data-v="image">Image</button><button data-v="none">Transparent</button>
+      </div>
+      <div id="bgPreset">
+        <button class="preset-pick" id="presetOpen" aria-haspopup="dialog">
+          <img id="presetThumb" alt="">
+          <span><strong id="presetName">Choisir un visuel</strong><small id="presetFam">Plus de 300 fonds aux couleurs du club</small></span>
+        </button>
+        <button class="btn ghost wide" id="presetOpen2">Parcourir les visuels…</button>
       </div>
       <div id="bgGradient">
         <div class="row"><label>Couleurs</label><input type="color" id="g1" aria-label="Couleur du haut"><input type="color" id="g2" aria-label="Couleur du bas">
@@ -112,6 +119,22 @@
     </div>
   </section>
 </main>
+
+<dialog id="gallery" aria-labelledby="gTitle">
+  <div class="g-head">
+    <strong id="gTitle">Visuels de fond</strong>
+    <span id="gCount" class="hint inline"></span>
+    <button class="icon" id="gClose" aria-label="Fermer">✕</button>
+  </div>
+  <div class="g-filters">
+    <div class="chips" id="gGroups" role="group" aria-label="Collection"></div>
+    <div class="g-row">
+      <select id="gFams" aria-label="Famille de visuels"></select>
+      <label class="check small" id="gWithPlayer"><input type="checkbox" id="gPlayer" checked> Voir avec un joueur</label>
+    </div>
+  </div>
+  <div class="g-grid" id="gGrid"></div>
+</dialog>
 
 <dialog id="viewer">
   <div class="v-head">

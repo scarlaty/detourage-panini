@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 1400" width="1000" height="1400">
+<title>120 · Glitch</title>
+<defs><linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#1E1E22" stop-opacity="1"/><stop offset="1" stop-color="#0A0A0B" stop-opacity="1"/></linearGradient><filter id="n2" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency="0.85" numOctaves="2" seed="3"/><feColorMatrix values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/></filter></defs>
+<rect width="1000" height="1400" fill="url(#g1)" opacity="1" />
+<rect x="-89" y="417" width="807" height="17" fill="#FDF103" opacity="0.15"/>
+<rect x="67" y="417" width="855" height="26" fill="#2E2E35" opacity="0.06"/>
+<rect x="162" y="341" width="708" height="29" fill="#FDF103" opacity="0.10"/>
+<rect x="497" y="46" width="894" height="9" fill="#FDF103" opacity="0.28"/>
+<rect x="-119" y="345" width="404" height="31" fill="#2E2E35" opacity="0.12"/>
+<rect x="418" y="714" width="838" height="36" fill="#FFFFFF" opacity="0.13"/>
+<rect x="509" y="729" width="816" height="11" fill="#FDF103" opacity="0.32"/>
+<rect x="-11" y="761" width="715" height="9" fill="#FDF103" opacity="0.34"/>
+<rect x="-42" y="3" width="797" height="32" fill="#FFFFFF" opacity="0.05"/>
+<rect x="-186" y="75" width="259" height="23" fill="#FFFFFF" opacity="0.21"/>
+<rect x="-46" y="178" width="735" height="6" fill="#2E2E35" opacity="0.22"/>
+<rect x="567" y="155" width="238" height="26" fill="#2E2E35" opacity="0.25"/>
+<rect x="390" y="767" width="603" height="31" fill="#FDF103" opacity="0.09"/>
+<rect x="-11" y="635" width="628" height="38" fill="#FDF103" opacity="0.27"/>
+<rect x="252" y="761" width="681" height="23" fill="#FFFFFF" opacity="0.08"/>
+<rect x="-32" y="794" width="339" height="17" fill="#2E2E35" opacity="0.27"/>
+<rect x="-200" y="341" width="278" height="26" fill="#FDF103" opacity="0.18"/>
+<rect x="304" y="292" width="272" height="7" fill="#FDF103" opacity="0.06"/>
+<rect x="198" y="703" width="697" height="33" fill="#FDF103" opacity="0.22"/>
+<rect x="-123" y="60" width="733" height="27" fill="#2E2E35" opacity="0.16"/>
+<rect x="334" y="774" width="320" height="17" fill="#FFFFFF" opacity="0.06"/>
+<rect x="10" y="846" width="315" height="33" fill="#FDF103" opacity="0.23"/>
+<rect x="-33" y="11" width="472" height="6" fill="#2E2E35" opacity="0.05"/>
+<rect x="185" y="719" width="394" height="14" fill="#FDF103" opacity="0.27"/>
+<rect x="136" y="266" width="300" height="8" fill="#2E2E35" opacity="0.28"/>
+<rect x="-65" y="345" width="701" height="36" fill="#2E2E35" opacity="0.31"/>
+<rect x="-161" y="445" width="570" height="8" fill="#FDF103" opacity="0.29"/>
+<rect x="432" y="738" width="801" height="10" fill="#FDF103" opacity="0.10"/>
+<rect x="111" y="411" width="321" height="24" fill="#FFFFFF" opacity="0.23"/>
+<rect x="321" y="236" width="607" height="6" fill="#2E2E35" opacity="0.32"/>
+<rect x="230" y="490" width="837" height="23" fill="#FDF103" opacity="0.31"/>
+<rect x="-149" y="516" width="357" height="38" fill="#FDF103" opacity="0.08"/>
+<rect x="192" y="630" width="646" height="20" fill="#FDF103" opacity="0.25"/>
+<rect x="167" y="26" width="460" height="13" fill="#2E2E35" opacity="0.22"/>
+<rect x="298" y="446" width="259" height="13" fill="#FDF103" opacity="0.25"/>
+<rect x="-49" y="366" width="626" height="6" fill="#FDF103" opacity="0.08"/>
+<rect x="238" y="27" width="532" height="26" fill="#2E2E35" opacity="0.28"/>
+<rect x="-193" y="300" width="868" height="32" fill="#2E2E35" opacity="0.09"/>
+<rect x="-90" y="347" width="825" height="21" fill="#2E2E35" opacity="0.12"/>
+<rect x="-23" y="702" width="277" height="11" fill="#FDF103" opacity="0.07"/>
+<text x="500" y="560" text-anchor="middle" font-family="'Archivo Black','Arial Black',Impact,sans-serif" font-weight="900" font-size="520" letter-spacing="-10" fill="none" stroke="#FDF103" stroke-width="3" opacity="0.25" >MSH</text>
+<text x="512" y="552" text-anchor="middle" font-family="'Archivo Black','Arial Black',Impact,sans-serif" font-weight="900" font-size="520" letter-spacing="-10" fill="none" stroke="#FFFFFF" stroke-width="2" opacity="0.12" >MSH</text>
+<rect width="1000" height="1400" filter="url(#n2)" opacity="0.08"/>
+</svg>

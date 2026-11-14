@@ -6,3 +6,6 @@ node_modules/
 *.png
 *.heic
 *.zip
+
+# Fonds tirés des photos de la salle (personnes visibles) : locaux uniquement
+fonds/salle/

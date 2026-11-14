@@ -40,6 +40,28 @@ sur un seul cœur du processeur et peut prendre **1 à 6 minutes par photo** sel
 Si aucune pose n'est détectée, le cadrage est estimé d'après la silhouette et la vignette
 porte la mention « à vérifier ».
 
+## Fonds
+
+Le bouton **Visuels** (section Fond) ouvre une fenêtre avec tous les fonds, filtrables par
+collection et par famille, avec un joueur en surimpression pour juger du rendu.
+
+| Collection | Contenu | Publié |
+|---|---|---|
+| Graphiques (`fonds/pro/`) | 175 fonds SVG : dégradés, écusson, panthère, griffures, rayons, projecteurs, trames, néons… | oui |
+| Salle (`fonds/salle/`) | Photos de la salle légèrement floutées et étalonnées | **non** (exclu de Git : personnes visibles) |
+
+Régénérer :
+
+```bash
+python tools/fonds_pro.py <logo.png> fonds/pro          # fonds graphiques (logo officiel fourni par le club)
+python tools/fonds_salle.py <photos> <logo.png> <dossier_sortie>
+python tools/catalogue.py [<dossier_sortie_salle>]     # catalogues + vignettes de la salle
+```
+
+Les vignettes des fonds graphiques (`fonds/pro/vignettes/*.webp`) sont rendues par le navigateur
+(rendu SVG identique à l'appli). La panthère est une interprétation vectorielle du logo, à faire
+valider par le club.
+
 ## Développement
 
 Aucune étape de compilation : les modules sont chargés tels quels.
