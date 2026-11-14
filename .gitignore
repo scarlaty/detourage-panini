@@ -7,7 +7,7 @@ node_modules/
 *.heic
 *.zip
 
-# Fonds tirés des photos de la salle (personnes visibles) : locaux uniquement
-fonds/salle/
+# Fonds de la salle : publiés (choix du club, 14/11/2026) malgré la règle *.jpg ci-dessus
+!fonds/salle/*.jpg
 __pycache__/
 *.pyc

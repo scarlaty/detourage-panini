@@ -48,7 +48,7 @@ collection et par famille, avec un joueur en surimpression pour juger du rendu.
 | Collection | Contenu | Publié |
 |---|---|---|
 | Graphiques (`fonds/pro/`) | 175 fonds SVG : dégradés, écusson, panthère, griffures, rayons, projecteurs, trames, néons… | oui |
-| Salle (`fonds/salle/`) | Photos de la salle légèrement floutées et étalonnées | **non** (exclu de Git : personnes visibles) |
+| Salle (`fonds/salle/`) | 138 fonds : photos de la salle légèrement floutées et étalonnées (des enfants apparaissent, petits et flous ; publication validée par le club) | oui |
 
 Régénérer :
 

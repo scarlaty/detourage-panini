@@ -1,8 +1,8 @@
 """Construit les catalogues de fonds utilisés par l'appli.
 
 - fonds/catalogue.json : fonds graphiques (fonds/pro/*.svg, vignettes fonds/pro/vignettes/*.webp)
-- fonds/salle/catalogue.json : fonds tirés des photos de la salle (copiés depuis un dossier local,
-  exclus de Git : photos d'un lieu avec des personnes)
+- fonds/salle/catalogue.json : fonds tirés des photos de la salle (copiés depuis le dossier
+  produit par tools/fonds_salle.py)
 
 Usage : python tools/catalogue.py [<dossier_fonds_salle>]
 Les vignettes des fonds graphiques sont produites par le navigateur (rendu SVG identique à l'appli),

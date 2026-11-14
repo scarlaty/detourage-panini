@@ -1,8 +1,7 @@
 """Fonds floutés tirés des photos de la salle (JPG 1000×1400, vignette 5:7).
 
-Les photos sources peuvent montrer des personnes (enfants à l'entraînement) : le flou est
-toujours assez fort pour les rendre méconnaissables. Les fichiers produits ne sont pas
-destinés au dépôt public.
+Les photos sources peuvent montrer des personnes (enfants à l'entraînement) : vérifier le
+droit à l'image avant toute publication. Le flou (sigma 4 à 10) garde la salle reconnaissable.
 
 Usage : python tools/fonds_salle.py <dossier_photos> <logo.png> <dossier_sortie>
 """
