@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BUST, landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox } from '../js/frame.js';
+import { BUST, landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, fullFrame, adjustFrame, clampToRegion, limitesManuelles, padAndClip, maskBBox } from '../js/frame.js';
 
 const close = (a, b, eps = 1e-6) => assert.ok(Math.abs(a - b) < eps, `${a} ≈ ${b}`);
 
@@ -169,4 +169,38 @@ test('bustFrame : source coupée au buste → cadre le plus grand possible sans 
 test('bustFrame : épaules estimées depuis le masque (sans pose) → pas de règle des épaules', () => {
   const a = { eyeY: 400, shoulderY: 600, centerX: 300, shoulderWidth: 900, shoulderEstimated: true };
   assert.deepEqual(bustFrame(a, 5 / 7), bustFrame({ eyeY: 400, shoulderY: 600, centerX: 300 }, 5 / 7));
+});
+
+test('décalage manuel vers le côté coupé : autorisé (enfant qui touche le bord droit)', () => {
+  // cas réel : photo 1204×1600, sujet collé au bord droit, cadre buste presque aussi large que l'image
+  const W = 1204, H = 1600, region = { x: 0, y: 0, w: W, h: H };
+  const lim = subjectLimits({ x0: 77, y0: 151, x1: 1204, y1: 1600 }, W);
+  const f = { x: 104, y: 98, w: 1073, h: 1502 };
+  const dec = adj => clampToRegion(adjustFrame(f, adj), region, W, H, limitesManuelles(lim, adj));
+  // joueur vers la gauche (cadre vers la droite) : avant, bloqué à x = 131
+  assert.ok(dec({ dx: -0.2 }).x > 300, `x = ${dec({ dx: -0.2 }).x}`);
+  assert.ok(dec({ dx: -0.2 }).x > dec({ dx: -0.1 }).x);
+  // vers la droite : inchangé
+  assert.equal(Math.round(dec({ dx: 0.1 }).x), Math.round(104 - 0.1 * 1073));
+  // sans décalage, le bord coupé reste respecté, y compris au zoom arrière
+  const z = dec({ zoom: 0.8 });
+  assert.ok(z.x + z.w <= W + 1e-6);
+  // le bas reste borné (pas de vide sous le buste)
+  const b = clampToRegion(adjustFrame(f, { dx: -0.2, dy: -0.2 }), region, W, H, limitesManuelles(lim, { dx: -0.2, dy: -0.2 }));
+  assert.ok(b.y + b.h <= 1600 + 1e-6);
+});
+
+test('limitesManuelles : symétrie, sans limites, sujet coupé des deux côtés', () => {
+  const W = 1000, H = 1400, region = { x: 0, y: 0, w: W, h: H }, f = { x: 0, y: 0, w: 900, h: 1260 };
+  const dec = (lim, adj) => clampToRegion(adjustFrame(f, adj), region, W, H, limitesManuelles(lim, adj));
+  // sujet collé au bord gauche : joueur vers la droite (dx > 0) autorisé, vers la gauche borné
+  const g = subjectLimits({ x0: 0, y0: 100, x1: 800, y1: 1400 }, W);
+  assert.ok(dec(g, { dx: 0.2 }).x < -100);
+  assert.equal(limitesManuelles(null, { dx: -0.2 }), null);
+  // coupé des deux côtés : seul le côté poussé est libéré
+  const d = subjectLimits({ x0: 0, y0: 100, x1: 1000, y1: 1400 }, W);
+  const r = dec(d, { dx: -0.2 });
+  assert.ok(r.x >= 0 && r.x + r.w > W);
+  const l = dec(d, { dx: 0.2 });
+  assert.ok(l.x < 0 && l.x + l.w <= W);
 });

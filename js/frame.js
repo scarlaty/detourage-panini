@@ -126,6 +126,20 @@ export function subjectLimits(bbox, imgW, tol = 2) {
   return { bottom: bbox.y1, left: bbox.x0 <= tol ? bbox.x0 : -Infinity, right: bbox.x1 >= imgW - tol ? bbox.x1 : Infinity };
 }
 
+/**
+ * Limites à respecter après les retouches manuelles. Le côté vers lequel l'utilisateur pousse le
+ * cadre est libéré : décaler le joueur, c'est accepter de voir le bord coupé de la photo
+ * (ex. enfant qui touche le bord droit : sinon impossible de le décaler vers la gauche).
+ * Le vide qui apparaît de ce côté (rempli par le fond) est voulu ; son étendue est bornée par
+ * la course du curseur (±30 % du cadre). L'autre côté et le bas restent bornés (pas de vide
+ * sous le buste, ni au zoom arrière).
+ */
+export function limitesManuelles(limits, { dx = 0 } = {}) {
+  if (!limits) return limits;
+  // adjustFrame : dx < 0 déplace le cadre vers la droite (joueur vers la gauche)
+  return { ...limits, left: dx > 0 ? -Infinity : limits.left, right: dx < 0 ? Infinity : limits.right };
+}
+
 /** Cadre « corps entier » : la boîte englobante du sujet, posée en bas ou centrée. */
 export function fullFrame(bbox, aspect, { fill = 0.9, place = 'bottom', imgH = Infinity } = {}) {
   const bw = bbox.x1 - bbox.x0, bh = bbox.y1 - bbox.y0;

@@ -2,7 +2,7 @@ import { MODELS, RES } from './models.js';
 import { detectPose } from './pose.js';
 import { resizeMask } from './matte.js';
 import {
-  landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox,
+  landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, limitesManuelles, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox,
 } from './frame.js';
 import { CARTE_DEFAUT, normaliser, dessinerCarte, contourJoueur, dependDeLaPhoto, modeles, surprise, fichePhoto, nomFichier } from './carte.js';
 import { construireEditeur } from './carte-ui.js';
@@ -485,7 +485,7 @@ function frameOf(it) {
   if (S.framing === 'bust' && it.anchor) f = bustFrame(it.anchor, asp, { zoom: S.zoom, headTop: it.headTop, limits: lim });
   else if (S.framing === 'full' && it.bbox) f = fullFrame(it.bbox, asp, { fill: S.fill / 100, place: S.place, imgH: it.H });
   else f = { x: 0, y: 0, w: it.W, h: it.H };
-  return clampToRegion(adjustFrame(f, it.adj), it.region, it.W, it.H, lim);
+  return clampToRegion(adjustFrame(f, it.adj), it.region, it.W, it.H, limitesManuelles(lim, it.adj));
 }
 function drawBackground(ctx, W, H) {
   if (S.bgMode === 'none') return;
