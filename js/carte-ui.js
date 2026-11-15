@@ -49,7 +49,7 @@ export function construireEditeur(box, get, change) {
     }
     if (sec === 'texte' || sec === 'plaque' || sec === 'badge' || sec === 'grandTexte') {
       const p = document.createElement('p'); p.className = 'hint';
-      p.textContent = '{nom}, {numero} et {poste} viennent du nom de chaque photo, ex. « 10 - Léa Martin (Gardienne).jpg ».';
+      p.textContent = '{nom}, {numero} et {poste} viennent de la fiche de chaque photo (champs sous la vignette, ou dans la retouche).';
       det.appendChild(p);
     }
     box.appendChild(det);

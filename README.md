@@ -65,8 +65,20 @@ se recrée et se modifie dans l'éditeur, élément par élément.
 | Contour du joueur | contour « autocollant » et lueur autour du joueur détouré |
 | Effets | effet holographique, vignettage, grain |
 
-Les textes acceptent `{nom}`, `{numero}` et `{poste}`, tirés du nom de chaque photo :
-`10 - Léa Martin (Gardienne).jpg` → numéro 10, nom Léa Martin, poste Gardienne.
+Les textes acceptent `{nom}`, `{numero}` et `{poste}`, tirés de la **fiche** de chaque photo.
+
+## Fiche joueur et nom des fichiers
+
+Sous chaque vignette (et dans la fenêtre de retouche), trois champs : **N°**, **Nom**, **Poste**
+(liste de postes proposée). Entrée passe à la photo suivante, Maj+Entrée à la précédente, pour
+saisir toute l'équipe d'affilée ; on peut remplir pendant le détourage.
+
+- Photo nommée par l'appareil (`DC29430RE`, `IMG_6232`, `DSC01234`…) : fiche vide à remplir.
+- Photo déjà nommée `10 - Léa Martin (Gardienne).jpg` : fiche préremplie.
+
+Le fichier téléchargé (seul ou dans le ZIP) est nommé `10 - Léa Martin (Gardienne).jpg` ;
+sans nom ni numéro, il garde le nom d'origine. Recharger ces images préremplit la fiche ;
+les marques de copie (`(2)`, `- copie`) sont ignorées.
 
 **Surprends-moi** tire une carte inédite au sort. **Mes cartes** enregistre ses créations dans
 le navigateur, et les exporte ou importe en fichier `.json` pour les partager. Le logo des

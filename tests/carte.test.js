@@ -114,3 +114,31 @@ test('« Surprends-moi » : cartes valides et variées', () => {
   assert.notDeepEqual(a, b);
   assert.deepEqual(surprise(1), a);
 });
+
+test('fiche joueur : noms d\'appareil reconnus, nom de fichier relu à l\'identique', async () => {
+  const { estNomAppareil, fichePhoto, nomFichier } = await import('../js/carte.js');
+  for (const n of ['DC29430RE', 'IMG_6232', 'DSC01234', 'PXL_20241112_153012345', '20241112_153012', 'P1010023', 'DSCF0042'])
+    assert.ok(estNomAppareil(n), n);
+  for (const n of ['10 - Léa Martin (Gardienne)', 'Lou Exemple', '7_Lou_Exemple', 'Jean'])
+    assert.ok(!estNomAppareil(n), n);
+  assert.deepEqual(fichePhoto('DC29430RE'), { nom: '', numero: '', poste: '' });
+  assert.deepEqual(fichePhoto('10 - Léa Martin (Gardienne)'), { numero: '10', nom: 'Léa Martin', poste: 'Gardienne' });
+  const f = { numero: '10', nom: 'Léa Martin', poste: 'Gardienne' };
+  assert.equal(nomFichier(f, 'DC29430RE'), '10 - Léa Martin (Gardienne)');
+  assert.deepEqual(champsPhoto(nomFichier(f)), f);
+  assert.equal(nomFichier({ nom: 'Léa Martin', numero: '', poste: '' }), 'Léa Martin');
+  assert.equal(nomFichier({ nom: '', numero: '7', poste: 'Pivot' }), '7 (Pivot)');
+  assert.equal(nomFichier({ nom: ' ', numero: '', poste: 'Pivot' }, 'DC29430RE'), 'DC29430RE');
+});
+
+test('noms d\'appareil : faux positifs, copies et variantes', async () => {
+  const { estNomAppareil, fichePhoto, nomFichier } = await import('../js/carte.js');
+  for (const n of ['IMG_E1234', '_MG_1234', 'IMG_6232(1)', 'IMG_6232 (1)', 'DC29430RE (1)', 'DC29430RE - copie', 'DC29430RE copy 2', 'img_20241112_153012'])
+    assert.ok(estNomAppareil(n), n);
+  for (const n of ['Jean2024', 'Marc1234', '100_Lou_Exemple', '007', '10'])
+    assert.ok(!estNomAppareil(n), n);
+  // doublon du ZIP et numéro seul : relus correctement
+  assert.deepEqual(champsPhoto('10 - Léa Martin (Gardienne) (2)'), { numero: '10', nom: 'Léa Martin', poste: 'Gardienne' });
+  assert.deepEqual(champsPhoto(nomFichier({ numero: '10', nom: '', poste: '' })), { numero: '10', nom: '', poste: '' });
+  assert.deepEqual(fichePhoto('Léa Martin (2)'), { numero: '', nom: 'Léa Martin', poste: '' });
+});

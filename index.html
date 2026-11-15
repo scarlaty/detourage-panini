@@ -166,6 +166,11 @@
     <figure class="v-pic"><canvas id="vSrc" title="Clique pour prélever la couleur du filet"></canvas><figcaption>Original (clic = prélever la couleur du filet)</figcaption></figure>
   </div>
   <div class="v-tools">
+    <div class="row fiche-v" id="vFiche"><label for="vNumero">Joueur</label>
+      <input id="vNumero" data-f="numero" inputmode="numeric" maxlength="3" placeholder="N°" aria-label="Numéro">
+      <input data-f="nom" maxlength="60" placeholder="Prénom Nom" aria-label="Nom">
+      <input data-f="poste" maxlength="40" placeholder="Poste" aria-label="Poste" list="postes"></div>
+    <datalist id="postes"><option value="Gardien"><option value="Gardienne"><option value="Ailier gauche"><option value="Ailière gauche"><option value="Arrière gauche"><option value="Demi-centre"><option value="Arrière droit"><option value="Arrière droite"><option value="Ailier droit"><option value="Ailière droite"><option value="Pivot"><option value="Entraîneur"><option value="Entraîneuse"></datalist>
     <div class="row"><label for="aZoom">Zoom</label><input type="range" id="aZoom" min="0.7" max="1.6" step="0.01"></div>
     <div class="row"><label for="aX">Gauche / droite</label><input type="range" id="aX" min="-0.3" max="0.3" step="0.005"></div>
     <div class="row"><label for="aY">Haut / bas</label><input type="range" id="aY" min="-0.3" max="0.3" step="0.005"></div>

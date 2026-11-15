@@ -4,7 +4,7 @@ import { resizeMask } from './matte.js';
 import {
   landmarksToAnchor, maskToAnchor, headTopNear, bustFrame, subjectLimits, fullFrame, adjustFrame, clampToRegion, padAndClip, maskBBox,
 } from './frame.js';
-import { CARTE_DEFAUT, normaliser, dessinerCarte, contourJoueur, dependDeLaPhoto, modeles, surprise } from './carte.js';
+import { CARTE_DEFAUT, normaliser, dessinerCarte, contourJoueur, dependDeLaPhoto, modeles, surprise, fichePhoto, nomFichier } from './carte.js';
 import { construireEditeur } from './carte-ui.js';
 
 const $ = id => document.getElementById(id);
@@ -291,7 +291,8 @@ function addFiles(list) {
   const files = [...list].filter(f => f.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|bmp|gif|avif)$/i.test(f.name));
   if (!files.length) return;
   for (const f of files) {
-    const it = { id: nextId++, name: f.name.replace(/\.[^.]+$/, ''), file: f, status: 'wait', adj: { zoom: 1, dx: 0, dy: 0 } };
+    const name = f.name.replace(/\.[^.]+$/, '');
+    const it = { id: nextId++, name, fiche: fichePhoto(name), file: f, status: 'wait', adj: { zoom: 1, dx: 0, dy: 0 } };
     items.push(it); renderItem(it); enqueue(it);
   }
   updateCount();
@@ -528,7 +529,7 @@ function carteArriere(w, h) {
 function composeCarte(it, out, f, W, H) {
   const ow = out.width, oh = out.height, ctx = out.getContext('2d'), res = { logo: logoCarte() }, c = carteCfg();
   ctx.imageSmoothingQuality = 'high';
-  if (dependDeLaPhoto(c)) dessinerCarte(ctx, ow, oh, c, res, 'arriere', it.name);
+  if (dependDeLaPhoto(c)) dessinerCarte(ctx, ow, oh, c, res, 'arriere', it.fiche);
   else ctx.drawImage(carteArriere(ow, oh), 0, 0);
   const sx = ow / f.w, sy = oh / f.h, r = it.region;
   if (c.contourJoueur.actif) {
@@ -536,7 +537,7 @@ function composeCarte(it, out, f, W, H) {
     px.drawImage(it.cut, (r.x - f.x) * sx, (r.y - f.y) * sy, r.w * sx, r.h * sy);
     contourJoueur(ctx, p, ow, oh, c); ctx.drawImage(p, 0, 0); free(p);
   } else ctx.drawImage(it.cut, (r.x - f.x) * sx, (r.y - f.y) * sy, r.w * sx, r.h * sy);
-  dessinerCarte(ctx, ow, oh, c, res, 'avant', it.name);
+  dessinerCarte(ctx, ow, oh, c, res, 'avant', it.fiche);
   return out;
 }
 /** Vignette finale, réduite pour que son plus grand côté ne dépasse pas maxDim. */
@@ -833,8 +834,18 @@ function renderItem(it) {
   let el = document.getElementById('it' + it.id);
   if (!el) {
     el = document.createElement('div'); el.className = 'item'; el.id = 'it' + it.id;
-    el.innerHTML = '<div class="pic" role="button" tabindex="0" aria-label="Retoucher"><img alt=""></div><div class="meta"><span></span><em class="tag" hidden></em><button title="Télécharger" aria-label="Télécharger" data-a="dl">⬇︎</button><button title="Retirer" aria-label="Retirer" data-a="rm">✕</button></div>';
+    el.innerHTML = '<div class="pic" role="button" tabindex="0" aria-label="Retoucher"><img alt=""></div><div class="meta"><span></span><em class="tag" hidden></em><button title="Télécharger" aria-label="Télécharger" data-a="dl">⬇︎</button><button title="Retirer" aria-label="Retirer" data-a="rm">✕</button></div>'
+      + '<div class="fiche"><input data-f="numero" inputmode="numeric" maxlength="3" placeholder="N°" aria-label="Numéro">'
+      + '<input data-f="nom" maxlength="60" placeholder="Prénom Nom" aria-label="Nom">'
+      + '<input data-f="poste" maxlength="40" placeholder="Poste" aria-label="Poste" list="postes"></div>';
     el.querySelector('span').textContent = it.name;
+    for (const inp of el.querySelectorAll('.fiche input')) {
+      inp.value = it.fiche[inp.dataset.f];
+      inp.title = inp.getAttribute('aria-label'); inp.setAttribute('aria-label', `${inp.title} (${it.name})`);
+      inp.addEventListener('input', () => modifierFiche(it, inp.dataset.f, inp.value));
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.isComposing) { e.preventDefault(); ficheSuivante(it, inp.dataset.f, e.shiftKey ? -1 : 1); } });
+    }
+    majNomFiche(it, el);
     el.querySelector('img').alt = it.name;
     el.addEventListener('click', e => {
       const a = e.target.closest('button')?.dataset.a;
@@ -849,7 +860,7 @@ function renderItem(it) {
   }
   let w = el.querySelector('.wait');
   if (it.status !== 'ok') {
-    if (!w) { w = document.createElement('div'); w.className = 'wait'; el.appendChild(w); }
+    if (!w) { w = document.createElement('div'); w.className = 'wait'; el.querySelector('.pic').appendChild(w); }   // la fiche reste saisissable pendant le détourage
     w.innerHTML = it.status === 'err' ? '' : `<div><div class="spin"></div>${it.status === 'run' ? 'Détourage…' : 'En attente…'}</div>`;
     if (it.status === 'err') w.textContent = '⚠️ ' + it.err;
     return;
@@ -887,16 +898,23 @@ function updateCount() {
 $('clear').onclick = () => { cancelPending(); [...items].forEach(removeItem); setStatus(''); setBar(null); };
 
 /* ---------------- téléchargements ---------------- */
-function safeName(n) { return n.replace(/[\\/:*?"<>|]+/g, '_').trim() || 'joueur'; }
+/** Nom de fichier valide partout (Windows : caractères interdits, noms réservés, point ou espace final). */
+function safeName(n) {
+  let s = n.replace(/[\x00-\x1f\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim().slice(0, 120).replace(/[. ]+$/, '');
+  if (/^(con|prn|aux|nul|com\d|lpt\d)(\..*)?$/i.test(s)) s = '_' + s;
+  return s || 'joueur';
+}
+/** Nom du fichier téléchargé : « 10 - Léa Martin (Gardienne) », ou le nom d'origine si la fiche est vide. */
+const nomExport = it => safeName(nomFichier(it.fiche, it.name));
 function saveBlob(blob, name) {
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = name;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }
 async function downloadOne(it) {
-  if (it.status !== 'ok') return;
+  if (it.status !== 'ok') { if (it.status !== 'err') toast('Photo pas encore prête : détourage en cours.'); return; }
   if (!(await backgroundReady())) return;
-  try { saveBlob(await toBlob(compose(it)), `${safeName(it.name)}.${fileType()[1]}`); }
+  try { saveBlob(await toBlob(compose(it)), `${nomExport(it)}.${fileType()[1]}`); }
   catch (e) { toast("L'export a échoué : " + e.message); }
 }
 $('zip').onclick = async () => {
@@ -912,8 +930,8 @@ $('zip').onclick = async () => {
     for (const [i, it] of ok.entries()) {
       if (!items.includes(it) || !it.cut) continue; // retirée pendant l'export
       setStatus(`Préparation du ZIP : ${i + 1} / ${ok.length}`); setBar((i + 1) / ok.length);
-      let n = safeName(it.name), k = 2;
-      while (used.has(n.toLowerCase())) n = `${safeName(it.name)} (${k++})`;
+      const base = nomExport(it); let n = base, k = 2;
+      while (used.has(n.toLowerCase())) n = `${base} (${k++})`;   // « (2) » : ignoré à la relecture
       used.add(n.toLowerCase());
       zip.file(`${n}.${ext}`, await toBlob(compose(it)));
     }
@@ -927,12 +945,42 @@ $('zip').onclick = async () => {
   }
 };
 
+/* ---------------- fiche joueur (numéro, nom, poste) ---------------- */
+// Les photos arrivent le plus souvent avec le nom de l'appareil (DC29430RE) : la fiche se remplit
+// à la main, sert aux textes de la carte et au nom du fichier téléchargé.
+const ficheT = new Map();
+function modifierFiche(it, champ, valeur) {
+  if (champ === 'numero') valeur = valeur.replace(/\D/g, '').slice(0, 3);
+  it.fiche[champ] = valeur;
+  majNomFiche(it);
+  const g = document.querySelector(`#it${it.id} .fiche input[data-f="${champ}"]`); if (g && g.value !== valeur) g.value = valeur;   // aussi pour retirer une lettre tapée dans le N°
+  if (viewing === it) { const v = document.querySelector(`#vFiche input[data-f="${champ}"]`); if (v && v.value !== valeur) v.value = valeur; }
+  // la vignette ne change que si la carte affiche ces champs
+  if (modeFond() !== 'carte' || !dependDeLaPhoto(carteCfg()) || it.status !== 'ok') return;
+  clearTimeout(ficheT.get(it.id));
+  ficheT.set(it.id, setTimeout(() => { ficheT.delete(it.id); renderItem(it); if (viewing === it) drawViewer(); }, 250));
+}
+function majNomFiche(it, el = document.getElementById('it' + it.id)) {
+  const n = nomExport(it);
+  if (el) { const s = el.querySelector('.meta span'); s.textContent = n; s.title = `Fichier : ${n}.${fileType()[1]} (photo d'origine : ${it.name})`; }
+  if (viewing === it) $('vName').textContent = n;
+}
+/** Entrée : même champ de la photo suivante (Maj+Entrée : précédente), pour saisir l'équipe d'affilée. */
+function ficheSuivante(it, champ, sens) {
+  const i = items.indexOf(it), nx = items[i + sens];
+  document.querySelector(`#it${nx?.id} .fiche input[data-f="${champ}"]`)?.focus();
+}
+for (const inp of document.querySelectorAll('#vFiche input')) {
+  inp.addEventListener('input', () => { if (viewing) modifierFiche(viewing, inp.dataset.f, inp.value); });
+}
+
 /* ---------------- visionneuse et retouche ---------------- */
 let viewing = null;
 const dlg = $('viewer');
 function okItems() { return items.filter(i => i.status === 'ok'); }
 function openViewer(it) {
-  viewing = it; $('vName').textContent = it.name;
+  viewing = it; majNomFiche(it);
+  for (const inp of document.querySelectorAll('#vFiche input')) { inp.value = it.fiche[inp.dataset.f]; inp.title = inp.getAttribute('aria-label'); }
   syncAdj(); drawViewer();
   if (!dlg.open) dlg.showModal();
 }

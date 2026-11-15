@@ -131,12 +131,44 @@ export function normaliser(cfg) {
  * « 10 - Léa Martin (Gardienne) » → { numero: '10', nom: 'Léa Martin', poste: 'Gardienne' }.
  */
 export function champsPhoto(nomFichier) {
-  let s = String(nomFichier || '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim(), numero = '', poste = '';
+  let s = sansDoublon(String(nomFichier || '').replace(/[_]+/g, ' ').replace(/\s+/g, ' ').trim()), numero = '', poste = '';
+  if (/^#?\d{1,3}$/.test(s)) return { nom: '', numero: s.replace('#', ''), poste: '' };   // numéro seul
   let m = s.match(/^#?(\d{1,3})\s*[-–._ ]\s*(.+)$/);
   if (m) { numero = m[1]; s = m[2].trim(); }
   m = s.match(/^(.*?)\s*[([]([^)\]]+)[)\]]\s*$/);
   if (m) { s = m[1].trim(); poste = m[2].trim(); }
   return { nom: s, numero, poste };
+}
+/**
+ * Nom donné par l'appareil photo (DC29430RE, IMG_6232, DSC01234, PXL_20241112_153012…) :
+ * il ne contient ni nom ni poste.
+ */
+export function estNomAppareil(nomFichier) {
+  const s = sansDoublon(String(nomFichier || '').trim());
+  if (/\s/.test(s)) return false;
+  // préfixe en majuscules (DC, IMG, DSCF, _MG…), lettre éventuelle (IMG_E1234), au moins 3 chiffres,
+  // suffixe court (RE), groupes de chiffres (PXL_20241112_153012) ; ou date seule (20241112_153012)
+  return /^(?:_?[A-Z]{1,6}[_-]?[A-Z]?\d{3,}|\d{6,})[A-Z0-9~]*(?:[_-][A-Z]?\d+[A-Z]*)*$/.test(s)
+    || /^(?:img|dsc[nf]?|pxl|vid|photo|image|dji|gopr|sam|wp)[_-]?[a-z]?\d{3,}[a-z0-9~]*(?:[_-]\d+)*$/i.test(s);
+}
+/** Retire les marques de copie ajoutées par le système : « (1) », « - copie », « copy 2 ». */
+function sansDoublon(s) {
+  return s.replace(/\s*(?:\(\d{1,3}\)|-?\s*(?:copie|copy)(?:\s*\d+)?)$/i, '').trim();
+}
+/** Fiche joueur initiale d'une photo : tirée de son nom, vide pour un nom d'appareil. */
+export function fichePhoto(nomFichier) {
+  return estNomAppareil(nomFichier) ? { nom: '', numero: '', poste: '' } : champsPhoto(nomFichier);
+}
+/**
+ * Nom du fichier téléchargé : « 10 - Léa Martin (Gardienne) », relu tel quel par champsPhoto.
+ * Sans nom ni numéro, on garde le nom d'origine.
+ */
+export function nomFichier(fiche, repli = 'joueur') {
+  const nom = (fiche?.nom || '').trim(), numero = (fiche?.numero || '').trim(), poste = (fiche?.poste || '').trim();
+  if (!nom && !numero) return repli;
+  let s = numero && nom ? `${numero} - ${nom}` : numero || nom;
+  if (poste) s += ` (${poste})`;
+  return s;
 }
 const EXEMPLE = { nom: 'Prénom Nom', numero: '10', poste: 'Arrière gauche' };
 function remplir(modele, ch) {
@@ -208,7 +240,7 @@ const P_BROW = [[483, 98], [537, 104], [523, 121], [492, 118]];
  * photo (champs {nom}, {numero}, {poste}) ou null pour un aperçu.
  */
 export function dessinerCarte(ctx, W, H, c, res = {}, couche = 'arriere', photo = null) {
-  const u = W / 1000, av = couche === 'avant', ch = photo == null ? null : champsPhoto(photo);
+  const u = W / 1000, av = couche === 'avant', ch = photo == null ? null : typeof photo === 'string' ? champsPhoto(photo) : photo;   // nom de fichier ou fiche { nom, numero, poste }
   ctx.save();
   if (!av) {
     fond(ctx, W, H, c.fond);
